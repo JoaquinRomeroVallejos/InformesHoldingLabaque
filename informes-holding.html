@@ -1,0 +1,3044 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Informes Económicos y Financieros — Holding</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #f4f6f8;
+    color: #1f2937;
+  }
+  .app { display: flex; min-height: 100vh; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 260px;
+    background: #0f2540;
+    color: #e6edf5;
+    padding: 20px 14px;
+    flex-shrink: 0;
+  }
+  .sidebar h1 {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    margin: 0 0 4px 0;
+    color: #fff;
+  }
+  .sidebar .sub { font-size: 11.5px; color: #9fb3ca; margin-bottom: 18px; }
+  .empresa-list { list-style: none; margin: 0; padding: 0; }
+  .empresa-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 10px; border-radius: 7px; margin-bottom: 4px;
+    cursor: pointer; font-size: 13.5px; color: #cfdcea;
+    transition: background .12s;
+  }
+  .empresa-item:hover { background: #1a3a5c; }
+  .empresa-item.active { background: #1e63b8; color: #fff; font-weight: 600; }
+  .empresa-item .del { opacity: 0; font-size: 12px; color: #ff9d9d; padding: 2px 6px; }
+  .empresa-item:hover .del { opacity: .8; }
+  .empresa-info { display: flex; flex-direction: column; overflow: hidden; }
+  .empresa-nombre { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
+  .empresa-cuit { font-size: 10.5px; color: #7d93ad; margin-top: 1px; }
+  .empresa-item.active .empresa-cuit { color: #cfe0f2; }
+  .add-empresa {
+    margin-top: 14px; width: 100%; padding: 8px; border-radius: 7px;
+    border: 1px dashed #3a5a7c; background: transparent; color: #a9c2dc;
+    cursor: pointer; font-size: 12.5px;
+  }
+  .add-empresa:hover { background: #16324f; }
+  .role-toggle {
+    margin-top: 22px; padding-top: 16px; border-top: 1px solid #24405e;
+  }
+  .role-toggle label { font-size: 11px; color: #8fa6bd; display:block; margin-bottom:6px; }
+  .role-btns { display: flex; border-radius: 7px; overflow: hidden; border: 1px solid #2f5578; }
+  .role-btns button {
+    flex: 1; padding: 7px 0; font-size: 11.5px; background: #0f2540; color: #9fb3ca;
+    border: none; cursor: pointer;
+  }
+  .role-btns button.active { background: #1e63b8; color: #fff; }
+
+  /* Login */
+  .login-screen {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; background: #0f2540;
+  }
+  .login-box {
+    background: #fff; border-radius: 12px; padding: 34px 30px; width: 320px;
+    box-shadow: 0 10px 40px rgba(0,0,0,.25);
+  }
+  .login-box h1 { margin: 0 0 4px 0; font-size: 20px; color: #0f2540; }
+  .login-box .sub { font-size: 12.5px; color: #6b7a8c; margin-bottom: 20px; }
+  .login-box .field { margin-bottom: 14px; }
+  .login-box label { font-size: 12px; color: #4b5a6b; display: block; margin-bottom: 5px; }
+  .login-box input {
+    width: 100%; padding: 9px 10px; border: 1px solid #d5dce3; border-radius: 7px; font-size: 14px;
+  }
+  .login-box button.primary {
+    width: 100%; padding: 10px 0; margin-top: 6px; background: #1e63b8; color: #fff;
+    border: none; border-radius: 7px; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .login-box button.primary:disabled { opacity: .6; cursor: default; }
+  .login-error { color: #c0392b; font-size: 12.5px; margin-top: 12px; min-height: 16px; }
+
+  /* Usuario logueado (sidebar) */
+  .user-box {
+    margin-top: 22px; padding-top: 16px; border-top: 1px solid #24405e;
+  }
+  .user-name { font-size: 13px; color: #fff; font-weight: 600; overflow-wrap: anywhere; }
+  .user-role { font-size: 11px; color: #8fa6bd; margin-top: 2px; margin-bottom: 10px; }
+  .user-actions { display: flex; flex-direction: column; gap: 6px; }
+  .user-actions button.secondary {
+    width: 100%; padding: 7px 0; font-size: 11.5px; background: #0f2540; color: #9fb3ca;
+    border: 1px solid #2f5578; border-radius: 7px; cursor: pointer;
+  }
+  .user-actions button.secondary:hover { background: #16345a; }
+
+  /* Main */
+  .main { flex: 1; padding: 26px 34px; overflow-x: hidden; }
+  .topbar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
+  .topbar h2 { margin: 0; font-size: 21px; color: #0f2540; }
+  .topbar .meta { font-size: 12.5px; color: #6b7a8c; margin-top: 3px; }
+  .badge {
+    display: inline-block; font-size: 11px; padding: 3px 9px; border-radius: 20px;
+    background: #e8f0fb; color: #1e63b8; font-weight: 600; margin-left: 8px;
+  }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 1px solid #dde3ea; flex-wrap: wrap; }
+  .tab {
+    padding: 9px 14px; font-size: 13px; cursor: pointer; color: #6b7a8c;
+    border-bottom: 2px solid transparent; font-weight: 500; white-space: nowrap;
+  }
+  .tab.active { color: #1e63b8; border-bottom-color: #1e63b8; }
+
+  .cards { display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
+  .card {
+    background: #fff; border-radius: 10px; padding: 16px 18px; flex: 1; min-width: 150px;
+    box-shadow: 0 1px 3px rgba(15,37,64,.07); border: 1px solid #eaeef2;
+  }
+  .card .label { font-size: 11.5px; color: #8592a3; text-transform: uppercase; letter-spacing: .03em; }
+  .card .value { font-size: 21px; font-weight: 700; color: #0f2540; margin-top: 5px; }
+  .card .value.neg { color: #c0392b; }
+  .card .value.pos { color: #1a7a4c; }
+
+  .panel {
+    background: #fff; border-radius: 10px; padding: 20px 22px; border: 1px solid #eaeef2;
+    box-shadow: 0 1px 3px rgba(15,37,64,.06); margin-bottom: 20px;
+  }
+  .panel h3 { margin: 0 0 14px 0; font-size: 14.5px; color: #0f2540; }
+  .chart-wrap { height: 280px; }
+
+  form.cierre { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 18px; }
+  .field { display: flex; flex-direction: column; }
+  .field.full { grid-column: 1 / -1; }
+  .field label { font-size: 12px; color: #556475; margin-bottom: 5px; font-weight: 500; }
+  .field input, .field select, .field textarea {
+    padding: 8px 10px; border: 1px solid #d7dde4; border-radius: 6px; font-size: 13px;
+    font-family: inherit; color: #1f2937; background: #fff;
+  }
+  .field textarea { resize: vertical; min-height: 70px; }
+  .field label .req { color: #c0392b; }
+  .form-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+  button.primary {
+    background: #1e63b8; color: #fff; border: none; padding: 10px 20px;
+    border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  button.primary:hover { background: #17518f; }
+  button.secondary {
+    background: #fff; color: #556475; border: 1px solid #d7dde4; padding: 10px 16px;
+    border-radius: 7px; font-size: 13px; cursor: pointer;
+  }
+
+  table.hist { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.hist th {
+    text-align: left; font-size: 11px; text-transform: uppercase; color: #8592a3;
+    padding: 8px 10px; border-bottom: 1px solid #eaeef2; position: sticky; top: 0; background: #fff;
+  }
+  table.hist th.sortable { cursor: pointer; user-select: none; }
+  table.hist th.sortable:hover { color: #1e63b8; }
+  table.hist th .arrow { font-size: 9px; margin-left: 4px; color: #9aa7b5; }
+  table.hist td { padding: 10px; border-bottom: 1px solid #f1f3f6; color: #33404f; }
+  table.hist tr:hover td { background: #f8fafc; }
+  .estado-pill { font-size: 11px; padding: 3px 9px; border-radius: 20px; font-weight: 600; }
+  .estado-pill.cerrado { background: #e5f5ec; color: #1a7a4c; }
+  .estado-pill.pendiente { background: #fdf1e0; color: #b3711a; }
+  .row-actions button { border: none; background: none; cursor: pointer; font-size: 12px; color: #1e63b8; margin-right: 8px; }
+  .row-actions button.del { color: #c0392b; }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: #8592a3; }
+  .empty-state h3 { color: #0f2540; margin-bottom: 8px; }
+
+  .note {
+    font-size: 12px; color: #8592a3; background: #f8fafc; border: 1px solid #eaeef2;
+    border-radius: 8px; padding: 10px 14px; margin-bottom: 18px;
+  }
+  .readonly-banner {
+    background: #fff8e6; border: 1px solid #f3d98a; color: #8a6300;
+    padding: 9px 14px; border-radius: 8px; font-size: 12.5px; margin-bottom: 16px;
+  }
+  .hidden { display: none !important; }
+
+  /* Módulos: carga de Excel */
+  .module-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .module-toolbar strong { font-size: 14px; color: #0f2540; }
+  .month-picker input {
+    padding: 7px 10px; border: 1px solid #d7dde4; border-radius: 6px; font-size: 13px;
+  }
+  .upload-box {
+    border: 2px dashed #c7d3e0; border-radius: 10px; padding: 40px 20px; text-align: center;
+    color: #6b7a8c; background: #fafcfe;
+  }
+  .upload-box .icon { font-size: 26px; margin-bottom: 6px; }
+  .upload-box input[type=file] { margin-top: 14px; font-size: 13px; }
+  .file-meta { font-size: 12px; color: #8592a3; margin-top: 10px; }
+  .mapping-form { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 20px; margin-top: 4px; }
+  .sheet-picker select { padding: 8px 10px; border: 1px solid #d7dde4; border-radius: 6px; font-size: 13px; min-width: 220px; }
+
+  .rank-bar-wrap { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+  .rank-bar-wrap .name {
+    width: 170px; font-size: 12.5px; color: #33404f; flex-shrink: 0; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  .rank-bar-track { flex: 1; background: #eef1f5; border-radius: 5px; height: 10px; overflow: hidden; }
+  .rank-bar-fill { height: 100%; background: #1e63b8; border-radius: 5px; }
+  .rank-bar-wrap .val { width: 150px; text-align: right; font-size: 12px; color: #556475; flex-shrink: 0; }
+
+  .aging-grid { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+  .aging-chip { flex: 1; min-width: 110px; border-radius: 8px; padding: 10px 12px; text-align: center; }
+  .aging-chip .lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .02em; }
+  .aging-chip .amt { font-size: 15px; font-weight: 700; margin-top: 3px; }
+
+  .remap-row { margin-top: 10px; }
+
+  .empresa-logo { width: 22px; height: 22px; object-fit: contain; border-radius: 4px; background: #fff; padding: 2px; flex-shrink: 0; }
+  .topbar-title { display: flex; align-items: center; gap: 12px; }
+  .topbar-logo { height: 42px; width: auto; max-width: 120px; object-fit: contain; }
+
+  .report-letterhead {
+    display: flex; align-items: center; gap: 16px; padding-bottom: 16px; margin-bottom: 18px;
+    border-bottom: 2px solid #0f2540;
+  }
+  .report-logo { height: 56px; width: auto; max-width: 160px; object-fit: contain; flex-shrink: 0; }
+  .report-letterhead-text h2 { margin: 1px 0; font-size: 19px; color: #0f2540; }
+  .report-eyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #1e63b8; }
+  .report-period { font-size: 12.5px; color: #6b7a8c; margin-top: 2px; }
+
+  .sidebar-nav { display: flex; flex-direction: column; gap: 3px; margin-bottom: 14px; }
+  .sidebar-nav .nav-item {
+    padding: 8px 10px; border-radius: 7px; font-size: 12.5px; font-weight: 600;
+    color: #9fb3ca; cursor: pointer; letter-spacing: .01em;
+  }
+  .sidebar-nav .nav-item:hover { background: #1a3a5c; }
+  .sidebar-nav .nav-item.active { background: #1e63b8; color: #fff; }
+
+  /* Módulo Obras / Inversiones */
+  .tipo-negocio-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+  .tipo-negocio-wrap label { font-size: 10.5px; color: #8592a3; text-transform: uppercase; letter-spacing: .02em; }
+  .tipo-select {
+    padding: 6px 9px; border: 1px solid #d7dde4; border-radius: 6px; font-size: 12.5px;
+    color: #33404f; background: #fff;
+  }
+  .tipo-badge { background: #eef6fc; color: #1e63b8; }
+  .obra-panel { border-top: 3px solid #1e63b8; }
+  .obra-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+  .obra-progress-track { background: #eef1f5; border-radius: 6px; height: 12px; overflow: hidden; margin-top: 4px; }
+  .obra-progress-fill { height: 100%; background: linear-gradient(90deg, #1e63b8, #2ea86d); border-radius: 6px; }
+</style>
+</head>
+<body>
+<div id="loginScreen" class="login-screen">
+  <form class="login-box" id="loginForm">
+    <h1>Informes Holding</h1>
+    <div class="sub">Ingresá con tu usuario para ver los informes.</div>
+    <div class="field"><label>Email</label><input type="email" id="loginEmail" required autocomplete="username"></div>
+    <div class="field"><label>Contraseña</label><input type="password" id="loginPassword" required autocomplete="current-password"></div>
+    <button type="submit" class="primary" id="loginSubmitBtn">Ingresar</button>
+    <div class="login-error" id="loginError"></div>
+  </form>
+</div>
+
+<div class="app" id="appRoot" style="display:none;">
+  <div class="sidebar">
+    <h1>Holding · Cierres Mensuales</h1>
+    <div class="sub">Informe económico-financiero por empresa</div>
+    <div class="sidebar-nav">
+      <div class="nav-item" id="navEmpresas">Empresas</div>
+      <div class="nav-item" id="navInversiones">Inversiones (UTE)</div>
+    </div>
+    <ul class="empresa-list" id="empresaList"></ul>
+    <button class="add-empresa" id="addEmpresaBtn">+ Agregar empresa</button>
+    <div class="user-box">
+      <div class="user-info">
+        <div class="user-name" id="userName"></div>
+        <div class="user-role" id="userRoleLabel"></div>
+      </div>
+      <div class="user-actions">
+        <button class="secondary" id="adminBtn" style="display:none;">Administrar usuarios</button>
+        <button class="secondary" id="logoutBtn">Cerrar sesión</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main" id="main"></div>
+</div>
+
+<script>
+/* =========================================================================
+   xlsx-lite: parser mínimo de archivos .xlsx en JS puro (sin dependencias)
+   ZIP (stored + deflate) + inflate RFC1951 + XML liviano vía regex.
+   ========================================================================= */
+const XlsxLite = (function () {
+
+  function BitReader(data) {
+    this.data = data;
+    this.bytePos = 0;
+    this.bitPos = 0;
+  }
+  BitReader.prototype.getBit = function () {
+    if (this.bytePos >= this.data.length) return 0;
+    const bit = (this.data[this.bytePos] >> this.bitPos) & 1;
+    this.bitPos++;
+    if (this.bitPos === 8) { this.bitPos = 0; this.bytePos++; }
+    return bit;
+  };
+  BitReader.prototype.getBits = function (n) {
+    let value = 0;
+    for (let i = 0; i < n; i++) value |= this.getBit() << i;
+    return value;
+  };
+  BitReader.prototype.alignToByte = function () {
+    if (this.bitPos !== 0) { this.bitPos = 0; this.bytePos++; }
+  };
+
+  function buildHuffman(lengths) {
+    const maxBits = Math.max.apply(null, lengths);
+    const blCount = new Array(maxBits + 1).fill(0);
+    for (const l of lengths) if (l > 0) blCount[l]++;
+    const nextCode = new Array(maxBits + 1).fill(0);
+    let code = 0;
+    for (let bits = 1; bits <= maxBits; bits++) {
+      code = (code + blCount[bits - 1]) << 1;
+      nextCode[bits] = code;
+    }
+    const codes = new Array(lengths.length).fill(0);
+    for (let n = 0; n < lengths.length; n++) {
+      const len = lengths[n];
+      if (len > 0) { codes[n] = nextCode[len]; nextCode[len]++; }
+    }
+    const maps = {};
+    for (let n = 0; n < lengths.length; n++) {
+      const len = lengths[n];
+      if (len > 0) {
+        if (!maps[len]) maps[len] = {};
+        maps[len][codes[n]] = n;
+      }
+    }
+    return { maps, maxBits };
+  }
+
+  function decodeSymbol(br, tree) {
+    let code = 0;
+    for (let len = 1; len <= tree.maxBits; len++) {
+      code = (code << 1) | br.getBit();
+      if (tree.maps[len] && Object.prototype.hasOwnProperty.call(tree.maps[len], code)) {
+        return tree.maps[len][code];
+      }
+    }
+    throw new Error('Símbolo Huffman inválido (stream corrupto)');
+  }
+
+  const LENGTH_BASE = [3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258];
+  const LENGTH_EXTRA = [0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0];
+  const DIST_BASE = [1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577];
+  const DIST_EXTRA = [0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13];
+  const CLC_ORDER = [16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15];
+
+  let FIXED_LIT_TREE = null, FIXED_DIST_TREE = null;
+  function getFixedTrees() {
+    if (FIXED_LIT_TREE) return [FIXED_LIT_TREE, FIXED_DIST_TREE];
+    const litLengths = new Array(288);
+    for (let i = 0; i <= 143; i++) litLengths[i] = 8;
+    for (let i = 144; i <= 255; i++) litLengths[i] = 9;
+    for (let i = 256; i <= 279; i++) litLengths[i] = 7;
+    for (let i = 280; i <= 287; i++) litLengths[i] = 8;
+    const distLengths = new Array(30).fill(5);
+    FIXED_LIT_TREE = buildHuffman(litLengths);
+    FIXED_DIST_TREE = buildHuffman(distLengths);
+    return [FIXED_LIT_TREE, FIXED_DIST_TREE];
+  }
+
+  function inflateRaw(input) {
+    const br = new BitReader(input);
+    const out = [];
+    let final = 0;
+    do {
+      final = br.getBit();
+      const type = br.getBits(2);
+      if (type === 0) {
+        br.alignToByte();
+        const len = input[br.bytePos] | (input[br.bytePos + 1] << 8);
+        br.bytePos += 4;
+        for (let i = 0; i < len; i++) out.push(input[br.bytePos + i]);
+        br.bytePos += len;
+      } else if (type === 1 || type === 2) {
+        let litTree, distTree;
+        if (type === 1) {
+          [litTree, distTree] = getFixedTrees();
+        } else {
+          const hlit = br.getBits(5) + 257;
+          const hdist = br.getBits(5) + 1;
+          const hclen = br.getBits(4) + 4;
+          const clLengths = new Array(19).fill(0);
+          for (let i = 0; i < hclen; i++) clLengths[CLC_ORDER[i]] = br.getBits(3);
+          const clTree = buildHuffman(clLengths);
+          const allLengths = [];
+          while (allLengths.length < hlit + hdist) {
+            const sym = decodeSymbol(br, clTree);
+            if (sym < 16) {
+              allLengths.push(sym);
+            } else if (sym === 16) {
+              const rep = br.getBits(2) + 3;
+              const prev = allLengths[allLengths.length - 1];
+              for (let i = 0; i < rep; i++) allLengths.push(prev);
+            } else if (sym === 17) {
+              const rep = br.getBits(3) + 3;
+              for (let i = 0; i < rep; i++) allLengths.push(0);
+            } else if (sym === 18) {
+              const rep = br.getBits(7) + 11;
+              for (let i = 0; i < rep; i++) allLengths.push(0);
+            }
+          }
+          const litLengths = allLengths.slice(0, hlit);
+          const distLengths = allLengths.slice(hlit, hlit + hdist);
+          litTree = buildHuffman(litLengths);
+          distTree = buildHuffman(distLengths.length ? distLengths : [0]);
+        }
+        while (true) {
+          const sym = decodeSymbol(br, litTree);
+          if (sym < 256) {
+            out.push(sym);
+          } else if (sym === 256) {
+            break;
+          } else {
+            const idx = sym - 257;
+            const length = LENGTH_BASE[idx] + br.getBits(LENGTH_EXTRA[idx]);
+            const distSym = decodeSymbol(br, distTree);
+            const dist = DIST_BASE[distSym] + br.getBits(DIST_EXTRA[distSym]);
+            const start = out.length - dist;
+            for (let i = 0; i < length; i++) out.push(out[start + i]);
+          }
+        }
+      } else {
+        throw new Error('Bloque DEFLATE tipo reservado (3) no soportado');
+      }
+    } while (!final);
+    return new Uint8Array(out);
+  }
+
+  function readZip(bytes) {
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    let eocd = -1;
+    for (let i = bytes.length - 22; i >= 0 && i >= bytes.length - 22 - 65557; i--) {
+      if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error('No es un archivo ZIP/XLSX válido');
+    const totalEntries = dv.getUint16(eocd + 10, true);
+    let cdOffset = dv.getUint32(eocd + 16, true);
+
+    const files = {};
+    for (let i = 0; i < totalEntries; i++) {
+      const sig = dv.getUint32(cdOffset, true);
+      if (sig !== 0x02014b50) break;
+      const compMethod = dv.getUint16(cdOffset + 10, true);
+      const compSize = dv.getUint32(cdOffset + 20, true);
+      const nameLen = dv.getUint16(cdOffset + 28, true);
+      const extraLen = dv.getUint16(cdOffset + 30, true);
+      const commentLen = dv.getUint16(cdOffset + 32, true);
+      const localHeaderOffset = dv.getUint32(cdOffset + 42, true);
+      const nameBytes = bytes.subarray(cdOffset + 46, cdOffset + 46 + nameLen);
+      const name = new TextDecoder('utf-8').decode(nameBytes);
+
+      const lSig = dv.getUint32(localHeaderOffset, true);
+      if (lSig === 0x04034b50) {
+        const lNameLen = dv.getUint16(localHeaderOffset + 26, true);
+        const lExtraLen = dv.getUint16(localHeaderOffset + 28, true);
+        const dataStart = localHeaderOffset + 30 + lNameLen + lExtraLen;
+        const rawData = bytes.subarray(dataStart, dataStart + compSize);
+        let content;
+        if (compMethod === 0) content = rawData;
+        else if (compMethod === 8) content = inflateRaw(rawData);
+        else content = null;
+        files[name] = content;
+      }
+      cdOffset += 46 + nameLen + extraLen + commentLen;
+    }
+    return files;
+  }
+
+  function textDecode(bytes) { return new TextDecoder('utf-8').decode(bytes); }
+
+  function colLetterToIndex(ref) {
+    const m = ref.match(/^([A-Z]+)(\d+)$/);
+    if (!m) return { col: 0, row: 0 };
+    let col = 0;
+    for (const ch of m[1]) col = col * 26 + (ch.charCodeAt(0) - 64);
+    return { col: col - 1, row: parseInt(m[2], 10) };
+  }
+
+  function unescapeXml(s) {
+    return s
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+      .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+      .replace(/&amp;/g, '&');
+  }
+
+  function getAttr(tag, name) {
+    const m = tag.match(new RegExp(name + '="([^"]*)"'));
+    return m ? unescapeXml(m[1]) : null;
+  }
+
+  function extractBlocks(xml, tag) {
+    const blocks = [];
+    const re = new RegExp('<' + tag + '(\\s[^>]*)?(\\/>|>([\\s\\S]*?)<\\/' + tag + '>)', 'g');
+    let m;
+    while ((m = re.exec(xml)) !== null) {
+      blocks.push({ openTag: '<' + tag + (m[1] || '') + '>', inner: m[3] || '' });
+    }
+    return blocks;
+  }
+
+  function parseSharedStrings(xmlBytes) {
+    if (!xmlBytes) return [];
+    const xml = textDecode(xmlBytes);
+    const siBlocks = extractBlocks(xml, 'si');
+    return siBlocks.map(({ inner }) => {
+      let text = '';
+      const tRe = /<t(?:\s[^>]*)?(?:\/>|>([\s\S]*?)<\/t>)/g;
+      let tm;
+      while ((tm = tRe.exec(inner)) !== null) text += unescapeXml(tm[1] || '');
+      return text;
+    });
+  }
+
+  function parseSheet(xmlBytes, sharedStrings) {
+    const xml = textDecode(xmlBytes);
+    const rowBlocks = extractBlocks(xml, 'row');
+    const rows = [];
+    let maxCol = 0;
+    rowBlocks.forEach(({ openTag, inner }) => {
+      const rAttr = getAttr(openTag, 'r');
+      const rowIndex = (rAttr ? parseInt(rAttr, 10) : rows.length + 1) - 1;
+      const rowData = rows[rowIndex] || [];
+      const cBlocks = extractBlocks(inner, 'c');
+      cBlocks.forEach(({ openTag: cOpen, inner: cInner }) => {
+        const ref = getAttr(cOpen, 'r');
+        if (!ref) return;
+        const { col } = colLetterToIndex(ref);
+        const type = getAttr(cOpen, 't');
+        let value = null;
+        if (type === 'inlineStr') {
+          const isM = cInner.match(/<is>([\s\S]*?)<\/is>/);
+          if (isM) {
+            const tM = isM[1].match(/<t(?:\s[^>]*)?(?:\/>|>([\s\S]*?)<\/t>)/);
+            value = tM ? unescapeXml(tM[1] || '') : '';
+          } else value = '';
+        } else if (type === 's') {
+          const vM = cInner.match(/<v>([\s\S]*?)<\/v>/);
+          const idx = vM ? parseInt(vM[1], 10) : -1;
+          value = sharedStrings[idx] !== undefined ? sharedStrings[idx] : '';
+        } else if (type === 'str' || type === 'e') {
+          const vM = cInner.match(/<v>([\s\S]*?)<\/v>/);
+          value = vM ? unescapeXml(vM[1]) : '';
+        } else if (type === 'b') {
+          const vM = cInner.match(/<v>([\s\S]*?)<\/v>/);
+          value = vM ? vM[1] === '1' : false;
+        } else {
+          const vM = cInner.match(/<v>([\s\S]*?)<\/v>/);
+          value = vM ? parseFloat(vM[1]) : null;
+        }
+        rowData[col] = value;
+        if (col > maxCol) maxCol = col;
+      });
+      rows[rowIndex] = rowData;
+    });
+    const out = [];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i] || [];
+      const filled = new Array(maxCol + 1).fill(null);
+      for (let c = 0; c <= maxCol; c++) filled[c] = r[c] !== undefined ? r[c] : null;
+      out.push(filled);
+    }
+    return out;
+  }
+
+  function parseXlsx(bytes) {
+    const files = readZip(bytes);
+    const sharedStrings = parseSharedStrings(files['xl/sharedStrings.xml']);
+
+    let sheetMeta = [];
+    if (files['xl/workbook.xml']) {
+      const wbXml = textDecode(files['xl/workbook.xml']);
+      const sheetBlocks = extractBlocks(wbXml, 'sheet');
+      sheetMeta = sheetBlocks.map(({ openTag }) => {
+        const name = getAttr(openTag, 'name');
+        let rId = getAttr(openTag, 'r:id');
+        if (!rId) {
+          const m = openTag.match(/\s([\w-]*:id)="([^"]*)"/);
+          if (m) rId = m[2];
+        }
+        return { name, rId };
+      });
+    }
+    let relsMap = {};
+    if (files['xl/_rels/workbook.xml.rels']) {
+      const relsXml = textDecode(files['xl/_rels/workbook.xml.rels']);
+      const relBlocks = extractBlocks(relsXml, 'Relationship');
+      relBlocks.forEach(({ openTag }) => {
+        const id = getAttr(openTag, 'Id');
+        const target = getAttr(openTag, 'Target');
+        if (id && target) relsMap[id] = target.startsWith('/') ? target.substring(1) : 'xl/' + target;
+      });
+    }
+
+    const sheets = {};
+    const sheetNames = [];
+    if (sheetMeta.length && Object.keys(relsMap).length) {
+      sheetMeta.forEach(sm => {
+        const path = relsMap[sm.rId];
+        if (path && files[path]) {
+          sheets[sm.name] = parseSheet(files[path], sharedStrings);
+          sheetNames.push(sm.name);
+        }
+      });
+    }
+    if (!sheetNames.length) {
+      const sheetFiles = Object.keys(files)
+        .filter(n => /^xl\/worksheets\/sheet\d+\.xml$/.test(n))
+        .sort((a, b) => {
+          const na = parseInt(a.match(/sheet(\d+)\.xml/)[1], 10);
+          const nb = parseInt(b.match(/sheet(\d+)\.xml/)[1], 10);
+          return na - nb;
+        });
+      sheetFiles.forEach((path, i) => {
+        const name = (sheetMeta[i] && sheetMeta[i].name) || ('Hoja' + (i + 1));
+        sheets[name] = parseSheet(files[path], sharedStrings);
+        sheetNames.push(name);
+      });
+    }
+    return { sheetNames, sheets };
+  }
+
+  function sheetToObjects(rows) {
+    if (!rows || !rows.length) return { headers: [], data: [] };
+    const headers = (rows[0] || []).map(h => (h === null || h === undefined) ? '' : String(h).trim());
+    const data = [];
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.every(v => v === null || v === '')) continue;
+      const obj = {};
+      headers.forEach((h, idx) => { obj[h || ('Col' + idx)] = row[idx] !== undefined ? row[idx] : null; });
+      data.push(obj);
+    }
+    return { headers, data };
+  }
+
+  function excelSerialToDate(serial) {
+    const utcDays = Math.floor(serial - 25569);
+    const utcValue = utcDays * 86400;
+    return new Date(utcValue * 1000);
+  }
+
+  return { parseXlsx, sheetToObjects, excelSerialToDate, readZip, inflateRaw };
+})();
+
+/* =========================================================================
+   Aplicación principal
+   ========================================================================= */
+const STORAGE_KEY = 'holdingInformesData_v1';
+
+// Envoltorio defensivo sobre localStorage: en algunos navegadores móviles
+// (sobre todo al abrir el archivo .html directamente con file://, en vez de
+// un sitio https) el acceso a localStorage puede estar bloqueado y tirar una
+// excepción. Sin esto, esa excepción rompía toda la carga de la app y se
+// veía como una página en blanco. Si localStorage no está disponible, se usa
+// un objeto en memoria: la app funciona igual (con todos los datos reales
+// precargados), solo que no recuerda cambios entre una apertura y la
+// siguiente del archivo.
+const safeStorage = (function () {
+  try {
+    const nativeStorage = window['localStorage'];
+    const testKey = '__holdingInformesTest__';
+    nativeStorage['setItem'](testKey, '1');
+    nativeStorage['removeItem'](testKey);
+    return nativeStorage;
+  } catch (e) {
+    console.warn('localStorage no disponible; usando memoria temporal para esta sesión.');
+    const mem = {};
+    return {
+      getItem: (k) => (k in mem ? mem[k] : null),
+      setItem: (k, v) => { mem[k] = String(v); },
+      removeItem: (k) => { delete mem[k]; }
+    };
+  }
+})();
+
+// Logo de Grupo MEC ("Inteligencia en Salud"), provisto por el auditor.
+const LOGO_MEC = 'data:image/png;base64,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';
+
+const MODULE_CONFIG = {
+  ventas: {
+    label: 'Ventas por Cliente',
+    entityField: 'cliente',
+    entityLabel: 'Cliente',
+    fields: [
+      { key: 'cliente', label: 'Cliente', required: true, keywords: ['cliente','razon social','razón social','nombre','denominación','denominacion','receptor','apellido'] },
+      { key: 'monto', label: 'Monto / Importe de venta', required: true, keywords: ['monto','importe','venta','total'] }
+    ]
+  },
+  deudores: {
+    label: 'Deudores por Ventas',
+    entityField: 'cliente',
+    entityLabel: 'Cliente',
+    fields: [
+      { key: 'cliente', label: 'Cliente', required: true, keywords: ['cliente','razon social','razón social','deudor','nombre'] },
+      { key: 'saldo', label: 'Saldo pendiente', required: true, keywords: ['saldo','deuda','pendiente','importe'] },
+      { key: 'vencimiento', label: 'Fecha de vencimiento', required: false, keywords: ['vencimiento','vto','venc'] },
+      { key: 'fecha', label: 'Fecha de comprobante', required: false, keywords: ['fecha','emision','emisión'] },
+      { key: 'comprobante', label: 'N° de comprobante', required: false, keywords: ['comprobante','factura','nro','número','numero','doc'] }
+    ]
+  },
+  proveedores: {
+    label: 'Deudas Comerciales',
+    entityField: 'proveedor',
+    entityLabel: 'Proveedor',
+    fields: [
+      { key: 'proveedor', label: 'Proveedor', required: true, keywords: ['proveedor','acreedor','razon social','razón social','nombre'] },
+      { key: 'saldo', label: 'Saldo pendiente', required: true, keywords: ['saldo','deuda','pendiente','importe'] },
+      { key: 'vencimiento', label: 'Fecha de vencimiento', required: false, keywords: ['vencimiento','vto','venc'] },
+      { key: 'fecha', label: 'Fecha de comprobante', required: false, keywords: ['fecha','emision','emisión'] },
+      { key: 'comprobante', label: 'N° de comprobante', required: false, keywords: ['comprobante','factura','nro','número','numero','doc'] }
+    ]
+  },
+  gastosCC: {
+    label: 'Gastos por Centro de Costos',
+    entityField: 'centroCosto',
+    entityLabel: 'Centro de Costos',
+    fields: [
+      { key: 'centroCosto', label: 'Centro de Costos / Sucursal', required: true, keywords: ['sucursal','centro de costo','centro costo','centro','área','area','departamento'] },
+      { key: 'monto', label: 'Monto / Importe', required: true, keywords: ['total operacion','total operación','monto','importe','total'] },
+      { key: 'proveedor', label: 'Proveedor (para el detalle)', required: false, keywords: ['persona','proveedor','razon social','razón social','denominación','denominacion','emisor'] },
+      { key: 'concepto', label: 'Concepto / Tipo de gasto', required: false, keywords: ['concepto','detalle','descripcion','descripción'] }
+    ]
+  }
+};
+
+const AGING_LABELS = { noVencido: 'A vencer', d0_30: '1-30 días', d31_60: '31-60 días', d61_90: '61-90 días', d90mas: '+90 días' };
+const AGING_COLORS = {
+  noVencido: { bg: '#e5f5ec', fg: '#1a7a4c', bar: '#2ea86d' },
+  d0_30:     { bg: '#eef6fc', fg: '#1e63b8', bar: '#4d94d8' },
+  d31_60:    { bg: '#fdf1e0', fg: '#b3711a', bar: '#e0a33c' },
+  d61_90:    { bg: '#fde4e0', fg: '#c0392b', bar: '#e0674f' },
+  d90mas:    { bg: '#f8d7da', fg: '#8a1c1c', bar: '#c0392b' }
+};
+
+function blankModulos() {
+  return { ventas: { colMap: null, datos: {} }, deudores: { colMap: null, datos: {} }, proveedores: { colMap: null, datos: {} }, gastosCC: { colMap: null, datos: {} } };
+}
+
+// Modelo de negocio por empresa: determina qué módulos/KPIs específicos se
+// muestran además de los genéricos (cierre mensual, ventas, deudores,
+// proveedores, gastos por centro de costos).
+const BUSINESS_TYPES = {
+  generico: { label: 'Genérico', desc: 'KPIs financieros estándar (ingresos, egresos, cartera).' },
+  salud:    { label: 'Salud',    desc: 'Prestadora o distribuidora del sector salud. Puede tener un Informe de Gestión propio con KPIs de facturación, rentabilidad y cartera.' }
+};
+const RUBROS_OBRA = ['Terreno', 'Materiales', 'Mano de obra', 'Tasas e Impuestos', 'Honorarios', 'Otro'];
+
+function ensureNegocio(emp) {
+  if (!emp.tipoNegocio) emp.tipoNegocio = 'generico';
+}
+
+// Las inversiones tipo UTE/obra no son un negocio de ninguna empresa en
+// particular: son una aplicación del excedente financiero de una o más
+// empresas del holding. Por eso viven en state.data.inversiones (nivel
+// holding) y no dentro de emp.*, y se ven en su propia sección del sidebar.
+function ensureInversiones(data) {
+  if (!data.inversiones) data.inversiones = [];
+}
+
+function computeParticipante(part) {
+  const aportes = part.aportes || [];
+  const aportadoUSD = aportes.reduce((s,a) => s + (a.usd||0), 0);
+  const aportadoARS = aportes.reduce((s,a) => s + (a.ars||0), 0);
+  const restanteUSD = (part.presupuestoUSD||0) - aportadoUSD;
+  const avancePct = part.presupuestoUSD ? (aportadoUSD / part.presupuestoUSD * 100) : 0;
+  const porRubro = {};
+  aportes.forEach(a => { porRubro[a.rubro] = (porRubro[a.rubro]||0) + (a.ars||0); });
+  const rubroArr = Object.entries(porRubro).map(([rubro, ars]) => ({ rubro, ars, pct: aportadoARS ? ars/aportadoARS*100 : 0 })).sort((a,b)=>b.ars-a.ars);
+  const mesesOrdenados = [...aportes].sort((a,b) => a.mes.localeCompare(b.mes));
+  return { aportadoUSD, aportadoARS, restanteUSD, avancePct, porRubro: rubroArr, aportes: mesesOrdenados };
+}
+
+function computeInversion(inv) {
+  const parts = (inv.participantes || []).map(p => ({ ...p, r: computeParticipante(p) }));
+  const presupuestoTotalUSD = parts.reduce((s,p) => s + (p.presupuestoUSD||0), 0);
+  const aportadoTotalUSD = parts.reduce((s,p) => s + p.r.aportadoUSD, 0);
+  const restanteTotalUSD = presupuestoTotalUSD - aportadoTotalUSD;
+  const avanceTotalPct = presupuestoTotalUSD ? (aportadoTotalUSD/presupuestoTotalUSD*100) : 0;
+  return { parts, presupuestoTotalUSD, aportadoTotalUSD, restanteTotalUSD, avanceTotalPct };
+}
+
+// Migración única: siembra la inversión "Los Boulevares" a nivel holding
+// (UTE entre MEC 40%, Clínica Sucre CCC 30% y MT S.A. 30%) con los aportes
+// reales extraídos de "UTE - Obra Los Boulevares - Interna.xlsx". Si el
+// usuario ya tenía la obra cargada dentro de MEC (versión anterior de la
+// app), la migra a esta estructura de holding y la saca de MEC.
+const INVERSIONES_UTE_FLAG = 'holdingInformesInversionesUTE_v1';
+function applyInversionesUTEMigration(data) {
+  if (safeStorage.getItem(INVERSIONES_UTE_FLAG)) return data;
+  ensureInversiones(data);
+  const cs = data.empresas.find(e => e.id === 'clinicasucre');
+  if (cs) { ensureNegocio(cs); cs.tipoNegocio = 'salud'; }
+  const mec = data.empresas.find(e => e.id === 'mec');
+  if (mec) { ensureNegocio(mec); mec.tipoNegocio = 'salud'; }
+  // limpia el módulo Obras si venía cargado dentro de MEC en una versión anterior
+  if (mec && Array.isArray(mec.obras)) delete mec.obras;
+
+  if (!data.inversiones.some(i => i.nombre === 'Los Boulevares')) {
+    data.inversiones.push({
+      id: uid(),
+      nombre: 'Los Boulevares',
+      tipo: 'UTE de construcción',
+      descripcion: 'Inversión del excedente financiero de MEC, Clínica Sucre CCC y MT en una UTE de construcción.',
+      participantes: [
+        { empresaId: 'mec', empresaNombre: 'MEC S.A.', pct: 40, presupuestoUSD: 464502.00, aportes: [
+          { mes: '2024-09', rubro: 'Terreno', ars: 1518000.00, usd: 1219.28 },
+          { mes: '2024-11', rubro: 'Terreno', ars: 1488081.00, usd: 1266.45 },
+          { mes: '2024-11', rubro: 'Honorarios', ars: 2800000.00, usd: 2500.00 },
+          { mes: '2024-12', rubro: 'Tasas e Impuestos', ars: 45269.64, usd: 42.51 },
+          { mes: '2025-01', rubro: 'Tasas e Impuestos', ars: 25200.00, usd: 20.74 },
+          { mes: '2025-01', rubro: 'Honorarios', ars: 240000.00, usd: 197.53 },
+          { mes: '2025-02', rubro: 'Tasas e Impuestos', ars: 1375347.60, usd: 1141.37 },
+          { mes: '2025-10', rubro: 'Honorarios', ars: 290000.00, usd: 205.67 },
+          { mes: '2026-06', rubro: 'Mano de obra', ars: 17174000.00, usd: 11859.63 },
+          { mes: '2026-07', rubro: 'Materiales', ars: 38674012.39, usd: 25016.43 },
+          { mes: '2026-07', rubro: 'Mano de obra', ars: 12500000.00, usd: 8205.81 },
+          { mes: '2026-07', rubro: 'Honorarios', ars: 2000000.00, usd: 1290.32 },
+          { mes: '2026-08', rubro: 'Materiales', ars: 32455000.00, usd: 21261.64 },
+          { mes: '2026-08', rubro: 'Honorarios', ars: 3000000.00, usd: 1960.78 }
+        ] },
+        { empresaId: 'clinicasucre', empresaNombre: 'Clínica Sucre CCC', pct: 30, presupuestoUSD: 348376.50, aportes: [
+          { mes: '2024-09', rubro: 'Terreno', ars: 1138500.00, usd: 914.46 },
+          { mes: '2024-11', rubro: 'Terreno', ars: 28015149.25, usd: 23842.68 },
+          { mes: '2026-03', rubro: 'Mano de obra', ars: 10000000.00, usd: 7117.44 },
+          { mes: '2026-06', rubro: 'Materiales', ars: 30000000.00, usd: 21052.63 },
+          { mes: '2026-08', rubro: 'Honorarios', ars: 15000000.00, usd: 9731.85 }
+        ] },
+        { empresaId: 'mt', empresaNombre: 'MT S.A.', pct: 30, presupuestoUSD: 348376.50, aportes: [
+          { mes: '2024-09', rubro: 'Terreno', ars: 1138500.00, usd: 914.46 },
+          { mes: '2024-11', rubro: 'Terreno', ars: 28015149.25, usd: 23842.68 },
+          { mes: '2026-03', rubro: 'Mano de obra', ars: 2000000.00, usd: 1423.49 },
+          { mes: '2026-06', rubro: 'Materiales', ars: 30000000.00, usd: 21052.63 },
+          { mes: '2026-06', rubro: 'Mano de obra', ars: 3000000.00, usd: 2040.82 },
+          { mes: '2026-06', rubro: 'Honorarios', ars: 302500.00, usd: 205.78 },
+          { mes: '2026-07', rubro: 'Materiales', ars: 2662507.51, usd: 1751.65 },
+          { mes: '2026-08', rubro: 'Materiales', ars: 174000.00, usd: 113.73 },
+          { mes: '2026-08', rubro: 'Mano de obra', ars: 17500000.00, usd: 11456.17 }
+        ] }
+      ]
+    });
+  }
+  safeStorage.setItem(INVERSIONES_UTE_FLAG, '1');
+  return data;
+}
+
+// Migración única: siembra el Informe de Gestión de MEC S.A. (droguería —
+// distribución de insumos y productos de salud) con los datos del informe
+// "MEC_Julio_2026_Analisis.xlsx" (ER mensual Ene-Jul 2026, concentración de
+// deudores, mezcla de ventas, proveedores y patrimonio). No incluye la
+// inversión en la UTE Los Boulevares: esa vive aparte, en
+// state.data.inversiones, por no ser parte del negocio core de MEC.
+const INFORME_MEC_FLAG = 'holdingInformesGestionMEC_v1';
+function applyInformeGestionMECMigration(data) {
+  if (safeStorage.getItem(INFORME_MEC_FLAG)) return data;
+  const emp = data.empresas.find(e => e.id === 'mec');
+  if (emp) {
+    emp.informeGestion = {
+      periodo: '2026-07',
+      fuente: 'Informe de gestión MEC 07/2026 (ER, ESP, Ventas, Deudores, Proveedores y Anexo Impuestos)',
+      erMensual: [
+        { mes:'2026-01', ventasNetasGravadas:579423604.47, ventasExentas:596342257.68, ventasNoFacturadas:0, totalVentas:1175765862.15, costoMercaderia:-554432021, costoFletes:-9932454, costoTotal:-564364475, utilidadBruta:611401387.15, margenBruto:0.5200026696063401, gastos:{alquiler:-861465, costoLaboral:-72568947, iibbMuni:-49563237, serviciosPublicos:-683636, gastosAdmin:-31598626, gastosComerc:-18572808, otrosGastosComerc:-115146234}, totalGastos:-288994953, utilidadOperativa:322406434.15, margenOperativo:0.27420972536185834, impGanancias:-96721931, utilidadNeta:225684503.15, margenNeto:0.1919468071111662 },
+        { mes:'2026-02', ventasNetasGravadas:361860219.25, ventasExentas:684079133.34, ventasNoFacturadas:0, totalVentas:1045939352.59, costoMercaderia:-731971712, costoFletes:-8020095, costoTotal:-739991807, utilidadBruta:305947545.59, margenBruto:0.29250983322541557, gastos:{alquiler:-861465, costoLaboral:-69913992, iibbMuni:-38875367, serviciosPublicos:-847020, gastosAdmin:-21685265, gastosComerc:-4898573, otrosGastosComerc:-111993920}, totalGastos:-249075602, utilidadOperativa:56871943.59, margenOperativo:0.054374035596969635, impGanancias:-17061583, utilidadNeta:39810360.59, margenNeto:0.03806182499149679 },
+        { mes:'2026-03', ventasNetasGravadas:421683209.35, ventasExentas:734747617.12, ventasNoFacturadas:0, totalVentas:1156430826.47, costoMercaderia:-779524657, costoFletes:-6723635, costoTotal:-786248292, utilidadBruta:370182534.47, margenBruto:0.3201078058425514, gastos:{alquiler:-861465, costoLaboral:-77053529, iibbMuni:-42228725, serviciosPublicos:-866709, gastosAdmin:-97101256, gastosComerc:-11883350, otrosGastosComerc:-73893980}, totalGastos:-303889014, utilidadOperativa:66293520.47, margenOperativo:0.05732597138763648, impGanancias:-19888056, utilidadNeta:46405464.47, margenNeto:0.040128180093272424 },
+        { mes:'2026-04', ventasNetasGravadas:417563409.48, ventasExentas:662400495.48, ventasNoFacturadas:0, totalVentas:1079963904.96, costoMercaderia:-679500268, costoFletes:-14618442, costoTotal:-694118710, utilidadBruta:385845194.96, margenBruto:0.3572760100480312, gastos:{alquiler:-861465, costoLaboral:-82832876, iibbMuni:-40230882, serviciosPublicos:-680670, gastosAdmin:-53700010, gastosComerc:-15690442, otrosGastosComerc:-77711125}, totalGastos:-271707470, utilidadOperativa:114137724.96, margenOperativo:0.10568661085411693, impGanancias:-34241318, utilidadNeta:79896406.96, margenNeto:0.07398062712379194 },
+        { mes:'2026-05', ventasNetasGravadas:594903603.56, ventasExentas:650331675.98, ventasNoFacturadas:0, totalVentas:1245235279.54, costoMercaderia:-798104216, costoFletes:-15582318, costoTotal:-813686534, utilidadBruta:431548745.54, margenBruto:0.34656000567171336, gastos:{alquiler:-861465, costoLaboral:-79365801, iibbMuni:-49080393, serviciosPublicos:-676592, gastosAdmin:-69804569, gastosComerc:-18388315, otrosGastosComerc:-120914856}, totalGastos:-339091991, utilidadOperativa:92456754.54, margenOperativo:0.07424842201238809, impGanancias:-27737026, utilidadNeta:64719728.54, margenNeto:0.05197389569937976 },
+        { mes:'2026-06', ventasNetasGravadas:619582373.16, ventasExentas:889485040.58, ventasNoFacturadas:150000000, totalVentas:1659067413.74, costoMercaderia:-1250861079, costoFletes:-12751057, costoTotal:-1263612136, utilidadBruta:395455277.74, margenBruto:0.23835998131536662, gastos:{alquiler:-861465, costoLaboral:-123439441, iibbMuni:-58365411, serviciosPublicos:-525099, gastosAdmin:-24731505, gastosComerc:-15425235, otrosGastosComerc:-49325524}, totalGastos:-272673680, utilidadOperativa:122781597.74, margenOperativo:0.07400639463059315, impGanancias:-36834479, utilidadNeta:85947118.74, margenNeto:0.05180447643550015 },
+        { mes:'2026-07', ventasNetasGravadas:768285484.82, ventasExentas:810404852.33, ventasNoFacturadas:164389032, totalVentas:1743079369.15, costoMercaderia:-970459078, costoFletes:-16024835, costoTotal:-986483913, utilidadBruta:756595456.15, margenBruto:0.4340568017387231, gastos:{alquiler:-861465, costoLaboral:-93001361, iibbMuni:-66066414, serviciosPublicos:-991205, gastosAdmin:-38221654, gastosComerc:-11492375, otrosGastosComerc:-142037160}, totalGastos:-352671634, utilidadOperativa:403923822.15, margenOperativo:0.23173002291167646, impGanancias:-121177147, utilidadNeta:282746675.15, margenNeto:0.162211015834511 }
+      ],
+      kpisJulio: {
+        facturacionReal: 1578690337.15,
+        facturacionRealJunio: 1509067413.74,
+        ratioJulJun: 1.046136390446236,
+        utilidadOperativa: 403923822.15,
+        margenOperativo: 0.23173002291167646,
+        utilidadNeta: 282746675.15,
+        margenNeto: 0.162211015834511
+      },
+      deudores: {
+        total: 4282162080.20,
+        concentracion: { top1: 0.5024642017939468, top5: 0.7848348067719643, top10: 0.8615092216167812 },
+        top: [
+          { nombre:'Ministerio de Salud', saldo:2151633151.58, pct:0.5024642017939468 },
+          { nombre:'APROSS', saldo:448532381.93, pct:0.1047443729428035 },
+          { nombre:'Droguería Pharma Center S.R.L.', saldo:390681913.26, pct:0.0912347328155671 },
+          { nombre:'Municipalidad de Córdoba', saldo:277320084.53, pct:0.06476169732394801 },
+          { nombre:'AOS S.R.L.', saldo:92622317.48, pct:0.021629801895698925 },
+          { nombre:'Hospital Privado Centro Médico de Cba SA', saldo:85749674.27, pct:0.020024854889657755 },
+          { nombre:'Soc. de Beneficencia Hospital Italiano', saldo:82768311.56, pct:0.019328626523201168 },
+          { nombre:'Gepremed S.A.', saldo:59185128.99, pct:0.013821319203133885 },
+          { nombre:'Servicios Médicos SRL', saldo:58914310.95, pct:0.0137580759080582 },
+          { nombre:'INSSJP (PAMI)', saldo:41714846, pct:0.009741538320766152 }
+        ]
+      },
+      proveedores: {
+        total: 1375474875.80,
+        top3pct: 0.7426981766612359,
+        top: [
+          { nombre:'B. Braun Medical SA', saldo:487858372.96, pct:0.3546835944031716 },
+          { nombre:'Abbott Laboratories Argentina S.A.', saldo:315269170.20, pct:0.22920750916415975 },
+          { nombre:'Nutricia Bagó S.A.', saldo:218435139.14, pct:0.15880707309390463 },
+          { nombre:'Roche Diabetes Care Argentina S.A.', saldo:52685204.26, pct:0.0383032836054947 },
+          { nombre:'ER-CO SRL', saldo:46881371.68, pct:0.034083771724825566 },
+          { nombre:'Ortopedia Santa Lucía SRL', saldo:33946000, pct:0.024679476591861715 },
+          { nombre:'AMN Advanced Medical Nutrition S.A.', saldo:29074230.21, pct:0.021137594529372937 },
+          { nombre:'B-Life S.A.', saldo:26110822.68, pct:0.018983133126887174 },
+          { nombre:'Danna & Co SRL', saldo:25228476.92, pct:0.018341648665393968 },
+          { nombre:'Lenterdit S.A.', saldo:20578243.76, pct:0.014960828526970614 }
+        ]
+      },
+      mezclaVentas: {
+        total: 1578690337.15,
+        aprossMinisterio: { monto:932252433.36, pct:0.5905226702299259 },
+        otros: { monto:646437903.79, pct:0.4094773297700741 },
+        top: [
+          { nombre:'Ministerio de Salud', monto:508850613.17, pct:0.32232452507983606 },
+          { nombre:'APROSS', monto:423401820.19, pct:0.26819814515008983 },
+          { nombre:'Droguería Pharma Center S.R.L.', monto:177538698.04, pct:0.11245948230766364 },
+          { nombre:'Hospital Privado Centro Médico de Córdoba SA', monto:69698171.99, pct:0.04414936251261642 },
+          { nombre:'AOS S.R.L.', monto:50294166, pct:0.031858157877114615 },
+          { nombre:'INSSJP (PAMI)', monto:36149293.61, pct:0.022898280149899503 },
+          { nombre:'Soc. de Beneficencia Hospital Italiano', monto:24731428.16, pct:0.015665788013023183 },
+          { nombre:'Obra Social del Personal de Luz y Fuerza de Córdoba', monto:24288603.33, pct:0.015385286625525348 },
+          { nombre:'Clínica Privada Modelo de Río Tercero SRL', monto:20606955.44, pct:0.013053196662495326 },
+          { nombre:'Servicios Médicos S R L', monto:16543899.30, pct:0.010479508812264348 }
+        ]
+      },
+      patrimonio: {
+        netoARS: 4027596168.38,
+        tipoCambio: 1530,
+        netoUSDCalculado: 2632415.80,
+        netoUSDInformado: 2756517.62,
+        inversionFCIMacroARS: 662309529.60,
+        respaldoFCIsobreDeudores: 0.15466708573746152
+      },
+      hallazgos: [
+        'El Patrimonio Neto en dólares informado por la empresa (U$S 2.756.517,62) difiere del calculado al tipo de cambio de cierre U$S 1.530 (U$S 2.632.415,80) en U$S 124.101,82 — a reconciliar con el tipo de cambio o balance de origen.',
+        'ESP – Nota 6 (Bienes de Uso): el cuerpo del balance informa $671.752.672,45 pero el detalle de la nota suma solo $393.748.501,07; la nota parece incompleta (la ecuación contable cierra con el monto del cuerpo del balance).',
+        'Anexo Impuestos: la columna "Neto + Exento" de julio coincide, al peso, con "Anexo Gastos" de junio — sugiere una carga pendiente del dato de julio en esa comparación puntual de IVA compras; no afecta las cifras de ventas/rentabilidad del ER, pero conviene verificarla antes de usarla para análisis de IVA.',
+        'Anexo Impuestos: quedan sin conciliar diferencias menores entre "Neto+Exento" y "Anexo Gastos" en junio ($46.194.748,48) y abril ($1.532.388,40), ya presentes en el archivo de origen.'
+      ],
+      lectura: [
+        'Ventas: la facturación real (excluyendo venta no devengada) creció 4,6% respecto a junio ($1.509,1M → $1.578,7M), el nivel más alto del semestre.',
+        'Rentabilidad: el margen operativo saltó de 7,4% (junio) a 23,2% (julio) y el margen neto de 5,2% a 16,2% — el segundo mejor mes del año después de enero. La mejora se explica principalmente por la normalización del costo de mercadería vendida, que bajó de 75,4% a 55,7% de las ventas.',
+        'Costo laboral: cayó de $123,4M (7,4% de ventas) en junio a $93,0M (5,3%) en julio; la suba de junio corresponde al pago del primer SAC/aguinaldo semestral (estacional, no una anomalía).',
+        'Otros gastos de comercialización subieron de $49,3M (3,0% de ventas) a $142,0M (8,2%) — se recomienda confirmar si hubo gastos de junio diferidos o devengados en julio.',
+        'Riesgo de concentración: APROSS + Ministerio de Salud representan ~59% de la facturación de julio y, sumado a la Municipalidad de Córdoba, la dependencia del sector público/salud pública supera el 65% de las ventas. En deudores, el Ministerio de Salud representa por sí solo ~50% del saldo total, con plazos de cobro largos (100-120 días).'
+      ]
+    };
+  }
+  safeStorage.setItem(INFORME_MEC_FLAG, '1');
+  return data;
+}
+
+// Migración única: retroalimenta las solapas genéricas "Ventas por Cliente" y
+// "Deudores por Ventas" de MEC con el mismo informe de gestión (top 30
+// clientes/deudores de julio 2026), en vez de dejarlas vacías esperando un
+// Excel aparte. También amplía el ranking del Informe de Gestión de top 10 a
+// top 30 para que ambas vistas usen los mismos datos completos. La cartera de
+// deudores no trae fecha de vencimiento en este informe, por lo que la
+// apertura por antigüedad no está disponible (se marca explícitamente).
+const MODULOS_MEC_FLAG = 'holdingInformesModulosMEC_v1';
+function applyModulosMECMigration(data) {
+  if (safeStorage.getItem(MODULOS_MEC_FLAG)) return data;
+  const emp = data.empresas.find(e => e.id === 'mec');
+  if (emp && emp.informeGestion) {
+    ensureModulos(emp);
+    const ig = emp.informeGestion;
+    const mes = ig.periodo;
+    const fechaCorte = lastDayOfMonth(mes);
+
+    ig.mezclaVentas.top = [
+      { nombre:'Ministerio de Salud', monto:508850613.17, pct:0.32232452507983606 },
+      { nombre:'APROSS', monto:423401820.19, pct:0.26819814515008983 },
+      { nombre:'Droguería Pharma Center S.R.L.', monto:177538698.04, pct:0.11245948230766364 },
+      { nombre:'Hospital Privado Centro Médico de Córdoba SA', monto:69698171.99, pct:0.04414936251261642 },
+      { nombre:'AOS S.R.L.', monto:50294166, pct:0.031858157877114615 },
+      { nombre:'INSSJP (PAMI)', monto:36149293.61, pct:0.022898280149899503 },
+      { nombre:'Sociedad de Beneficencia Hospital Italiano', monto:24731428.16, pct:0.015665788013023183 },
+      { nombre:'Obra Social del Personal de Luz y Fuerza de Córdoba', monto:24288603.33, pct:0.015385286625525348 },
+      { nombre:'Clínica Privada Modelo de Río Tercero SRL', monto:20606955.44, pct:0.013053196662495326 },
+      { nombre:'Servicios Médicos S R L', monto:16543899.30, pct:0.010479508812264348 },
+      { nombre:'Hemo S.R.L.', monto:14416092.23, pct:0.0091316782593509 },
+      { nombre:'Sanatorio del Salvador Privado SA', monto:14099814.88, pct:0.008931336658115175 },
+      { nombre:'Clínica Privada SRL', monto:13416010.63, pct:0.008498190122718963 },
+      { nombre:'Gepremed S.A.', monto:12857184.71, pct:0.00814420941678214 },
+      { nombre:'OSDE', monto:11404958.68, pct:0.007224316518329555 },
+      { nombre:'Sanatorio Parque S A', monto:11037357.33, pct:0.0069914644248255 },
+      { nombre:'Clínica Regional del Sud S A', monto:8977456, pct:0.005686647842671253 },
+      { nombre:'Clínica Colombo SA', monto:8686135.46, pct:0.005502114794520772 },
+      { nombre:'Obra Social de Petroleros de Córdoba', monto:8370537.88, pct:0.0053022037843794495 },
+      { nombre:'Instituto Privado de Neonatología y Pediatría S.A.', monto:8331301.65, pct:0.005277350126206795 },
+      { nombre:'Clínica Privada La Falda SRL', monto:7035818.18, pct:0.00445674367824517 },
+      { nombre:'Ciprem SRL', monto:6222718.07, pct:0.003941696432521298 },
+      { nombre:'Clínica Romagosa SA', monto:5826572.31, pct:0.0036907632693303706 },
+      { nombre:'Clínica Privada Caraffa SRL', monto:5058903.80, pct:0.003204494054947348 },
+      { nombre:'Ambientar SRL', monto:4799560, pct:0.00304021623940805 },
+      { nombre:'Promdex S. A.', monto:4796688.27, pct:0.0030383971809566095 },
+      { nombre:'SAD Córdoba SA', monto:4769824.80, pct:0.003021380879933005 },
+      { nombre:'De la Villa Servicios Asistenciales S.A.', monto:4670477.01, pct:0.0029584503686971206 },
+      { nombre:'Sanatorio Argentino S.A.', monto:4555896.53, pct:0.002885870916410835 },
+      { nombre:'Figueroa Jorge Alejandro', monto:4545454.55, pct:0.0028792565856872736 }
+    ];
+    ig.deudores.top = [
+      { nombre:'Ministerio de Salud', saldo:2151633151.58, pct:0.5024642017939468 },
+      { nombre:'APROSS', saldo:448532381.93, pct:0.1047443729428035 },
+      { nombre:'Droguería Pharma Center S.R.L.', saldo:390681913.26, pct:0.0912347328155671 },
+      { nombre:'Municipalidad de Córdoba', saldo:277320084.53, pct:0.06476169732394801 },
+      { nombre:'AOS S.R.L.', saldo:92622317.48, pct:0.021629801895698925 },
+      { nombre:'Hospital Privado Centro Médico de Cba SA', saldo:85749674.27, pct:0.020024854889657755 },
+      { nombre:'Soc. de Beneficencia Hospital Italiano', saldo:82768311.56, pct:0.019328626523201168 },
+      { nombre:'Gepremed S.A.', saldo:59185128.99, pct:0.013821319203133885 },
+      { nombre:'Servicios Médicos SRL', saldo:58914310.95, pct:0.0137580759080582 },
+      { nombre:'INSSJP (PAMI)', saldo:41714846, pct:0.009741538320766152 },
+      { nombre:'Clínica Priv. Modelo de Río Tercero SRL', saldo:35692557.27, pct:0.008335171953214104 },
+      { nombre:'De la Villa Servic. Asistenciales S.A.', saldo:33480835.19, pct:0.007818675370745487 },
+      { nombre:'Obra Social del Personal de Luz y Fuerza de Córdoba', saldo:33318086.51, pct:0.0077806691773899105 },
+      { nombre:'Sanatorio del Salvador Privado SA', saldo:30170765.28, pct:0.007045685033619947 },
+      { nombre:'GEA S.A.', saldo:28007260.30, pct:0.006540448440637238 },
+      { nombre:'Clínica Privada S.R.L.', saldo:21611326.11, pct:0.00504682581024365 },
+      { nombre:'Farmacia Aldaya', saldo:20360668.35, pct:0.004754763591071044 },
+      { nombre:'Universidad Nacional de Córdoba', saldo:20138172.53, pct:0.004702804833828112 },
+      { nombre:'Clínica Privada Santa María S.A.', saldo:18879261.08, pct:0.004408815156085413 },
+      { nombre:'Coseme S.A.', saldo:18731469.94, pct:0.004374301950552311 },
+      { nombre:'Munic. de la Ciudad de Villa Carlos Paz', saldo:17928882.49, pct:0.00418687619810099 },
+      { nombre:'OSDE', saldo:13800000, pct:0.0032226711043491065 },
+      { nombre:'Ciprem SRL', saldo:12867532.23, pct:0.003004914804485639 },
+      { nombre:'Sanatorio Parque SA', saldo:11505717.74, pct:0.002686894499673544 },
+      { nombre:'Inst. Priv. de Neonat. y Pediatría S.A.', saldo:11436795.34, pct:0.002670799265838588 },
+      { nombre:'Clínica Priv. Jesús María Dr. Aníbal L.', saldo:11401473.96, pct:0.002662550773759477 },
+      { nombre:'Ctro. Priv. Tomografía Computada Cba SA', saldo:10686575.74, pct:0.002495602814618563 },
+      { nombre:'Clínica Romagosa S A', saldo:10379495.70, pct:0.002423891367398971 },
+      { nombre:'Obra Social de Petroleros de Córdoba', saldo:10128350.83, pct:0.0023652422865616876 },
+      { nombre:'Santini SRL', saldo:9514587.06, pct:0.0022219119411649216 }
+    ];
+
+    const ventasRows = ig.mezclaVentas.top.map(c => ({ Cliente: c.nombre, Monto: c.monto }));
+    const restoVentas = ig.mezclaVentas.total - ig.mezclaVentas.top.reduce((s,c) => s + c.monto, 0);
+    if (restoVentas > 0.5) ventasRows.push({ Cliente: 'Resto de clientes (no listados individualmente)', Monto: restoVentas });
+    const ventasResultado = computeVentas(ventasRows, { cliente: 'Cliente', monto: 'Monto' });
+    emp.modulos.ventas.datos[mes] = { resultado: ventasResultado, filas: ventasRows.length, cargadoEl: new Date().toISOString(), sheetUsada: ig.fuente, origen: 'informeGestion' };
+
+    const deudoresRows = ig.deudores.top.map(d => ({ Deudor: d.nombre, Saldo: d.saldo }));
+    const restoDeudores = ig.deudores.total - ig.deudores.top.reduce((s,d) => s + d.saldo, 0);
+    if (restoDeudores > 0.5) deudoresRows.push({ Deudor: 'Resto de deudores (no listados individualmente)', Saldo: restoDeudores });
+    const deudoresResultado = computeCartera(deudoresRows, { cliente: 'Deudor', saldo: 'Saldo' }, fechaCorte, 'cliente');
+    emp.modulos.deudores.datos[mes] = { resultado: deudoresResultado, filas: deudoresRows.length, cargadoEl: new Date().toISOString(), sheetUsada: ig.fuente, origen: 'informeGestion', sinAntiguedad: true };
+  }
+  safeStorage.setItem(MODULOS_MEC_FLAG, '1');
+  return data;
+}
+
+// Migración única: asigna el logo de Grupo MEC a la empresa MEC S.A.
+const LOGO_MEC_FLAG = 'holdingInformesLogoMEC_v1';
+function applyLogoMECMigration(data) {
+  if (safeStorage.getItem(LOGO_MEC_FLAG)) return data;
+  const emp = data.empresas.find(e => e.id === 'mec');
+  if (emp) emp.logo = LOGO_MEC;
+  safeStorage.setItem(LOGO_MEC_FLAG, '1');
+  return data;
+}
+
+function seedData() {
+  const empresasHolding = [
+    { id: 'clinicasucre', nombre: 'Clínica Sucre Centro de Cuidados Coronarios S.R.L', cuit: '30-56185092-1', tipoNegocio: 'salud' },
+    { id: 'mt', nombre: 'MT S.A', cuit: '30-70944899-0', tipoNegocio: 'generico' },
+    { id: 'desages', nombre: 'DESAGES S.A', cuit: '30-71210331-7', tipoNegocio: 'generico' },
+    { id: 'mec', nombre: 'MEC S.A', cuit: '30-71112640-2', tipoNegocio: 'salud' },
+    { id: 'gepremed', nombre: 'GEPREMED S.A', cuit: '30-71205344-1', tipoNegocio: 'generico' },
+    { id: 'jla', nombre: 'JLA S.A.S', cuit: '30-71638245-8', tipoNegocio: 'generico' }
+  ];
+  return {
+    empresas: empresasHolding.map(e => ({
+      id: e.id,
+      nombre: e.nombre,
+      cuit: e.cuit,
+      tipoNegocio: e.tipoNegocio,
+      cierres: [],
+      modulos: blankModulos()
+    })),
+    inversiones: []
+  };
+}
+
+// completa a las entidades recuperadas de mayor saldo (los seeds no lo traían resuelto)
+function fixSeedMayor(d) {
+  d.empresas.forEach(emp => {
+    ['ventas','deudores','proveedores'].forEach(k => {
+      const mod = emp.modulos && emp.modulos[k];
+      if (!mod) return;
+      Object.values(mod.datos || {}).forEach(entry => {
+        if (entry.resultado && entry.resultado.porEntidad && entry.resultado.porEntidad.length) {
+          entry.resultado.porEntidad.sort((a,b) => b.saldo - a.saldo);
+          entry.resultado.mayor = entry.resultado.porEntidad[0];
+        }
+      });
+    });
+  });
+  return d;
+}
+
+// Migración única: reemplaza cualquier lista previa (p. ej. las empresas de
+// ejemplo del prototipo) por las empresas reales del holding, una sola vez.
+const COMPANIES_INIT_FLAG = 'holdingInformesCompaniesInit_v2';
+function applyRealCompaniesMigration(data) {
+  if (safeStorage.getItem(COMPANIES_INIT_FLAG)) return data;
+  data.empresas = seedData().empresas;
+  safeStorage.setItem(COMPANIES_INIT_FLAG, '1');
+  return data;
+}
+
+// Migración única: carga los cierres de Marzo/Abril/Mayo 2026 de Clínica Sucre
+// y MT a partir de los informes económicos provistos por el auditor. Los
+// Egresos se estiman repartiendo el gasto consolidado CS-MT proporcionalmente
+// a la facturación de cada empresa (el informe origen no desagrega el gasto
+// por entidad). Activo/Pasivo/Patrimonio/Liquidez/Endeudamiento no figuran en
+// ese informe y quedan sin cargar.
+const CIERRES_CS_MT_FLAG = 'holdingInformesCierresCSMT_v1';
+function applyCierresCSMTMigration(data) {
+  if (safeStorage.getItem(CIERRES_CS_MT_FLAG)) return data;
+  const nuevosCierres = {
+    clinicasucre: [
+      { mes: '2026-03', ingresos: 169505544.75, egresos: 82419360.93, activo: null, pasivo: null, patrimonio: null, liquidez: null, endeudamiento: null, estado: 'Cerrado',
+        resumen: 'Facturación de $169.505.544,75. Egresos estimados en $82.419.360,93 (49% del gasto consolidado CS-MT del mes, repartido proporcionalmente a la facturación de cada empresa, ya que el informe de gestión no desagrega el gasto por entidad). Cobranza consolidada del holding: 94% de lo facturado. Rentabilidad consolidada CS-MT sobre facturado: 51,38%.' },
+      { mes: '2026-04', ingresos: 149135840.81, egresos: 83193531.11, activo: null, pasivo: null, patrimonio: null, liquidez: null, endeudamiento: null, estado: 'Cerrado',
+        resumen: 'Facturación de $149.135.840,81. Egresos estimados en $83.193.531,11 (reparto proporcional del gasto consolidado CS-MT). Cobranza consolidada del holding: 95%. Rentabilidad consolidada CS-MT: 44,22%.' },
+      { mes: '2026-05', ingresos: 149135840.81, egresos: 96212687.57, activo: null, pasivo: null, patrimonio: null, liquidez: null, endeudamiento: null, estado: 'Cerrado',
+        resumen: 'Facturación de $149.135.840,81 (igual a abril; confirmado por el auditor como dato real, no repetición del informe). Egresos estimados en $96.212.687,57 (reparto proporcional del gasto consolidado CS-MT, que subió respecto a abril por Ganancias 2025 y 2024). Rentabilidad consolidada CS-MT: 35,49%.' }
+    ],
+    mt: [
+      { mes: '2026-03', ingresos: 100246993.31, egresos: 48743497.66, activo: null, pasivo: null, patrimonio: null, liquidez: null, endeudamiento: null, estado: 'Cerrado',
+        resumen: 'Facturación de $100.246.993,31. Egresos estimados en $48.743.497,66 (reparto proporcional del gasto consolidado CS-MT). Pendiente de cobro: diferencia de alquiler Docta de $13.179.625,21 (09/2025 a 03/2026). Cobranza consolidada del holding: 94%.' },
+      { mes: '2026-04', ingresos: 87959070.95, egresos: 49066848.49, activo: null, pasivo: null, patrimonio: null, liquidez: null, endeudamiento: null, estado: 'Cerrado',
+        resumen: 'Facturación de $87.959.070,95. Egresos estimados en $49.066.848,49 (reparto proporcional del gasto consolidado CS-MT). Sin pendientes de diferencia de alquiler Docta este mes (cobrado vía 7 e-cheqs de junio a diciembre). Cobranza consolidada del holding: 95%.' },
+      { mes: '2026-05', ingresos: 87959070.95, egresos: 56745438.03, activo: null, pasivo: null, patrimonio: null, liquidez: null, endeudamiento: null, estado: 'Cerrado',
+        resumen: 'Facturación de $87.959.070,95 (igual a abril; confirmado por el auditor como dato real). Egresos estimados en $56.745.438,03 (reparto proporcional del gasto consolidado CS-MT). Pendiente de cobro: diferencia de alquiler Docta de $1.595.226,41.' }
+    ]
+  };
+  Object.keys(nuevosCierres).forEach(empId => {
+    const emp = data.empresas.find(e => e.id === empId);
+    if (!emp) return;
+    nuevosCierres[empId].forEach(c => {
+      emp.cierres = (emp.cierres || []).filter(existing => existing.mes !== c.mes);
+      emp.cierres.push(c);
+    });
+  });
+  safeStorage.setItem(CIERRES_CS_MT_FLAG, '1');
+  return data;
+}
+
+// Migración única: fusiona Clínica Sucre CCC y MT S.A. en una sola empresa
+// "CS y MT (Consolidado)". Ambas funcionan en conjunto: Clínica Sucre cobra
+// el alquiler de los bienes muebles que fueron de su propiedad y MT cobra el
+// alquiler del inmueble de la ex Clínica Sucre. Los cierres mensuales se
+// suman (ingresos y egresos ya venían de un mismo gasto consolidado CS-MT
+// repartido entre las dos, así que sumarlos reconstruye ese total original).
+// Es una agregación simple, no una consolidación contable formal con
+// eliminación de operaciones intercompañía (no hay datos para saber si el
+// alquiler de MT a la operación incluye o no un cargo de Clínica Sucre).
+const CONSOLIDACION_CSMT_FLAG = 'holdingInformesConsolidacionCSMT_v1';
+function applyConsolidacionCSMTMigration(data) {
+  if (safeStorage.getItem(CONSOLIDACION_CSMT_FLAG)) return data;
+  const idxCS = data.empresas.findIndex(e => e.id === 'clinicasucre');
+  const cs = idxCS >= 0 ? data.empresas[idxCS] : null;
+  const mt = data.empresas.find(e => e.id === 'mt');
+  if (cs && mt) {
+    const resumenPorMes = {
+      '2026-03': 'Facturación consolidada CS + MT de $269.752.538,06 (Clínica Sucre: $169.505.544,75 por alquiler de bienes muebles; MT: $100.246.993,31 por alquiler del inmueble). Egresos consolidados de $131.162.858,59. Resultado neto: $138.589.679,47 (margen 51,4%). Cobranza consolidada del holding: 94% de lo facturado. Pendiente de cobro en MT: diferencia de alquiler Docta de $13.179.625,21 (09/2025 a 03/2026).',
+      '2026-04': 'Facturación consolidada CS + MT de $237.094.911,76 (Clínica Sucre: $149.135.840,81; MT: $87.959.070,95). Egresos consolidados de $132.260.379,60. Resultado neto: $104.834.532,16 (margen 44,2%). Cobranza consolidada del holding: 95%. Sin pendientes de diferencia de alquiler Docta este mes (cobrado vía 7 e-cheqs de junio a diciembre).',
+      '2026-05': 'Facturación consolidada CS + MT de $237.094.911,76 (igual a abril; confirmado por el auditor como dato real, no repetición del informe). Egresos consolidados de $152.958.125,60 (suben respecto a abril por Ganancias 2025 y 2024). Resultado neto: $84.136.786,16 (margen 35,5%). Pendiente de cobro en MT: diferencia de alquiler Docta de $1.595.226,41.'
+    };
+    const meses = Array.from(new Set([...cs.cierres.map(c=>c.mes), ...mt.cierres.map(c=>c.mes)])).sort();
+    const cierresConsolidados = meses.map(mes => {
+      const cCS = cs.cierres.find(c => c.mes === mes);
+      const cMT = mt.cierres.find(c => c.mes === mes);
+      const ingresos = (cCS ? cCS.ingresos : 0) + (cMT ? cMT.ingresos : 0);
+      const egresos = (cCS ? cCS.egresos : 0) + (cMT ? cMT.egresos : 0);
+      return {
+        mes,
+        ingresos, egresos,
+        activo: null, pasivo: null, patrimonio: null, liquidez: null, endeudamiento: null,
+        estado: (cCS && cCS.estado === 'Cerrado') || (cMT && cMT.estado === 'Cerrado') ? 'Cerrado' : 'Pendiente',
+        resumen: resumenPorMes[mes] || `Facturación consolidada CS + MT de ${fmtMoney(ingresos)}. Egresos consolidados de ${fmtMoney(egresos)}. Resultado neto: ${fmtMoney(ingresos-egresos)}.`
+      };
+    });
+
+    const consolidada = {
+      id: 'csmt',
+      nombre: 'CS y MT (Consolidado)',
+      cuit: (cs.cuit || '') + (cs.cuit && mt.cuit ? ' (CS) / ' : '') + (mt.cuit || '') + (mt.cuit ? ' (MT)' : ''),
+      tipoNegocio: 'salud',
+      cierres: cierresConsolidados,
+      modulos: blankModulos(),
+      nota: 'Clínica Sucre CCC y MT S.A. se presentan consolidadas: Clínica Sucre cobra el alquiler de los bienes muebles que fueron de su propiedad, y MT cobra el alquiler del inmueble de la ex Clínica Sucre. Es una agregación simple de ambos cierres, no una consolidación contable formal con eliminación de operaciones intercompañía.'
+    };
+    data.empresas.splice(idxCS, 1, consolidada);
+    data.empresas = data.empresas.filter(e => e.id !== 'mt');
+
+    // Fusiona también su participación en inversiones tipo UTE (p. ej. Los
+    // Boulevares) para que no queden participantes "huérfanos" de CS/MT.
+    ensureInversiones(data);
+    data.inversiones.forEach(inv => {
+      const pCS = inv.participantes.find(p => p.empresaId === 'clinicasucre');
+      const pMT = inv.participantes.find(p => p.empresaId === 'mt');
+      if (pCS || pMT) {
+        const fusion = {
+          empresaId: 'csmt',
+          empresaNombre: 'CS y MT (Consolidado)',
+          pct: (pCS ? pCS.pct : 0) + (pMT ? pMT.pct : 0),
+          presupuestoUSD: (pCS ? pCS.presupuestoUSD : 0) + (pMT ? pMT.presupuestoUSD : 0),
+          aportes: [...(pCS ? pCS.aportes : []), ...(pMT ? pMT.aportes : [])]
+        };
+        inv.participantes = inv.participantes.filter(p => p.empresaId !== 'clinicasucre' && p.empresaId !== 'mt');
+        inv.participantes.push(fusion);
+      }
+    });
+  }
+  safeStorage.setItem(CONSOLIDACION_CSMT_FLAG, '1');
+  return data;
+}
+
+// Migración única: carga el Estado de Resultado real (mensual, Ene-Jun 2026)
+// de CS y MT, ya preparado como una única pieza consolidada por el propio
+// cliente ("MT y CS - Estado de Resultado 2026.xlsx"), y lo muestra como un
+// Informe de Gestión propio de la empresa "csmt" (tipo:'csmt', para
+// diferenciarlo del informe tipo 'salud' de MEC). Reemplaza los cierres
+// estimados (reparto proporcional) cargados en la migración anterior por
+// estos datos reales y ya detallados por rubro de gasto.
+const ESTADO_RESULTADO_CSMT_FLAG = 'holdingInformesEstadoResultadoCSMT_v2';
+function applyEstadoResultadoCSMTMigration(data) {
+  if (safeStorage.getItem(ESTADO_RESULTADO_CSMT_FLAG)) return data;
+  const emp = data.empresas.find(e => e.id === 'csmt');
+  if (emp) {
+    const erMensual = [
+      { mes:'2026-01', ventas:215583001.83, ventasCS:142345939.50, ventasMT:73237062.33, cmv:11089239.62, margenBruto:204493762.21, margenBrutoPct:0.9486, sueldosHonorarios:69180827.38, impuestos:49186132.27, otrosGastos:4966072.44, totalGastosOperativos:123333032.09, margenNeto:81160730.12, margenNetoPct:0.3764, cobrado:208568890.90, pctCobrado:0.9675 },
+      { mes:'2026-02', ventas:225896444.83, ventasCS:142345939.50, ventasMT:83550505.33, cmv:11089239.62, margenBruto:214807205.21, margenBrutoPct:0.9509, sueldosHonorarios:68134603.85, impuestos:48214160.34, otrosGastos:3255264.99, totalGastosOperativos:119604029.18, margenNeto:95203176.03, margenNetoPct:0.4214, cobrado:215924730.24, pctCobrado:0.9559 },
+      { mes:'2026-03', ventas:269752538.06, ventasCS:169505544.75, ventasMT:100246993.31, cmv:11089239.62, margenBruto:258663298.44, margenBrutoPct:0.9589, sueldosHonorarios:73246504.22, impuestos:43803086.09, otrosGastos:3024028.66, totalGastosOperativos:120073618.97, margenNeto:138589679.47, margenNetoPct:0.5138, cobrado:254606586.07, pctCobrado:0.9439 },
+      { mes:'2026-04', ventas:237094911.76, ventasCS:149135840.81, ventasMT:87959070.95, cmv:11089239.62, margenBruto:226005672.14, margenBrutoPct:0.9532, sueldosHonorarios:72641629.98, impuestos:43982305.71, otrosGastos:4547204.29, totalGastosOperativos:121171139.98, margenNeto:104834532.16, margenNetoPct:0.4422, cobrado:225764699.75, pctCobrado:0.9522 },
+      { mes:'2026-05', ventas:237094911.76, ventasCS:149135840.81, ventasMT:87959070.95, cmv:11089239.62, margenBruto:226005672.14, margenBrutoPct:0.9532, sueldosHonorarios:72678502.08, impuestos:64556479.61, otrosGastos:4633904.29, totalGastosOperativos:141868885.98, margenNeto:84136786.16, margenNetoPct:0.3549, cobrado:225764699.75, pctCobrado:0.9522 },
+      { mes:'2026-06', ventas:254338053.27, ventasCS:159903448.52, ventasMT:94434604.75, cmv:11889882.72, margenBruto:242448170.55, margenBrutoPct:0.9533, sueldosHonorarios:78308218.70, impuestos:85802726.55, otrosGastos:5242943.44, totalGastosOperativos:169353888.69, margenNeto:73094281.87, margenNetoPct:0.2874, cobrado:231735813.10, pctCobrado:0.9111 },
+      { mes:'2026-07', ventas:254338053.27, ventasCS:159903448.52, ventasMT:94434604.75, cmv:11889882.72, margenBruto:242448170.55, margenBrutoPct:0.9533, sueldosHonorarios:78308218.70, impuestos:81892439.33, otrosGastos:6054352.62, totalGastosOperativos:166255010.65, margenNeto:76193159.91, margenNetoPct:0.2996, cobrado:null, pctCobrado:null }
+    ];
+    const um = erMensual[erMensual.length - 1]; // último mes real: julio 2026
+
+    emp.informeGestion = {
+      tipo: 'csmt',
+      periodo: um.mes,
+      fuente: 'Estado de Resultado MT y CS - Consolidado (hojas "Estado de Resultado", "Datos Origen" e "Indicadores Clave")',
+      erMensual,
+      desgloseGastosUltimoMes: {
+        mes: um.mes,
+        items: [
+          { concepto: 'Sueldos (JL-PL-FV-DO-JRV)', monto: 42400000, pct: 42400000/um.totalGastosOperativos },
+          { concepto: 'Retiros (FL-BL-YL)', monto: 26000000, pct: 26000000/um.totalGastosOperativos },
+          { concepto: 'Honorarios FB', monto: 6004310.55, pct: 6004310.55/um.totalGastosOperativos },
+          { concepto: 'Honorarios Cavallieri (MT-CS)', monto: 3200000, pct: 3200000/um.totalGastosOperativos },
+          { concepto: 'Honorarios Manza', monto: 703908.15, pct: 703908.15/um.totalGastosOperativos },
+          { concepto: 'IVA - IIBB - Com e Ind - 931 (MT-CS)', monto: 30200416.52, pct: 30200416.52/um.totalGastosOperativos },
+          { concepto: 'Anticipo Ganancias 2026', monto: 21750280.36, pct: 21750280.36/um.totalGastosOperativos },
+          { concepto: 'Ganancias 2025', monto: 21815923.27, pct: 21815923.27/um.totalGastosOperativos },
+          { concepto: 'Ganancias 2024', monto: 5997352.62, pct: 5997352.62/um.totalGastosOperativos },
+          { concepto: 'Mis Facilidades AFIP (MT-CS)', monto: 2128466.56, pct: 2128466.56/um.totalGastosOperativos },
+          { concepto: 'Interfile - Claro', monto: 5997352.62, pct: 5997352.62/um.totalGastosOperativos },
+          { concepto: 'Otros (débitos, alarma)', monto: 57000, pct: 57000/um.totalGastosOperativos }
+        ]
+      },
+      cobranza: {
+        pendienteAlquilerDocta: 18285227.69,
+        notaDocta: 'Diferencia de alquiler Docta pendiente de cobro por parte de MT. Es el último saldo que informa el archivo (a junio 2026); no hay un dato de cobranza distinto cargado para julio.'
+      },
+      inversionUSD: {
+        boulevaresFuenteId: 'Los Boulevares',
+        boulevares1AporteMes: 1751.65,
+        boulevares1Acumulado: 102407.07,
+        boulevares2Acumulado: 300000,
+        cajaAhorroUSD: 185477.11,
+        compraDolarMEPMes: 32411.10
+      },
+      hallazgos: [
+        'Julio 2026: la facturación, el CMV, el margen bruto y sueldos/honorarios repiten exactamente los valores de junio. Confirmado por el auditor: es un monto fijo mensual de alquiler, no un error de carga. Los impuestos (IVA-IIBB, Ganancias, Facilidades AFIP, Interfile-Claro) sí tienen valores propios y distintos para julio, tomados tal como figuran en el Excel.',
+        'El archivo no incluye un dato de cobranza (% cobrado) propio de julio (la hoja "Datos Origen" no tiene una columna de cobranza para ese mes). Se dejó sin dato en vez de asumir el mismo porcentaje que junio.',
+        'El acumulado de aportes a la UTE Boulevares 1 que figura en el Excel es el mismo en junio y julio ($102.407,07 en ambos), pese a que julio registra un aporte adicional de U$S 1.751,65 ese mes. Conviene confirmar con quien preparó el archivo cuál de los dos valores (aporte mensual o acumulado) es el correcto.',
+        'El dashboard "Indicadores Clave" del archivo etiqueta el Margen Neto como "38,6% — Junio 2026", pero ese porcentaje corresponde en realidad al promedio Enero-Julio (Margen Neto total / Ventas total), no al mes de junio de forma aislada. El margen neto real de junio, calculado mes a mes desde la hoja "Estado de Resultado", es 28,7%; el de julio, 30,0% — ambos bien por debajo del promedio acumulado.',
+        'La hoja "Datos Origen" tiene una columna adicional también etiquetada "Jun-26" (facturación $303.260.696,23) que no coincide con la columna "Junio" final del Estado de Resultado ($254.338.053,27) ni con "Indicadores Clave". Se usó esta última por ser la que el archivo presenta como cifra definitiva del mes; conviene confirmar con quien preparó el archivo cuál de las dos series es la correcta.',
+        'El Estado de Resultado ya viene consolidado CS+MT desde el origen (gastos operativos compartidos, sin discriminar por empresa). No se realiza aquí una eliminación contable formal de operaciones intercompañía (p. ej. alquileres cruzados entre ambas), tal como se advirtió al fusionar las dos empresas en el sistema.'
+      ],
+      lectura: [
+        'Facturación de julio: $254,3M, igual a junio (CS 62,9% / MT 37,1%) por tratarse de un alquiler de monto fijo mensual.',
+        'El margen bruto se mantiene muy estable, en torno al 95%, porque el único costo directo relevado es "Estadísticas (Ap-FB)".',
+        'El margen neto de julio es 30,0%, apenas por encima de junio (28,7%): los impuestos bajaron levemente ($85,8M a $81,9M) pero siguen siendo el mayor rubro de gasto operativo, junto con sueldos y honorarios.',
+        'Sueldos y honorarios se mantienen como el otro gran componente de gasto operativo (47,1% en julio) y vienen en aumento desde enero: de $69,2M a $78,3M (+13,2%).',
+        'Los aportes a la UTE Los Boulevares 1 acumulan U$S 102.407 a julio; queda pendiente de cobro una diferencia de alquiler Docta de $18.285.227,69 (último dato disponible, a junio).'
+      ]
+    };
+
+    // Reemplaza los cierres estimados de la migración anterior por los
+    // 7 meses reales del Estado de Resultado (misma forma de objeto que
+    // usan Resumen/Historial, aunque esas solapas queden ocultas mientras
+    // haya un Informe de Gestión cargado).
+    emp.cierres = erMensual.map(m => ({
+      mes: m.mes,
+      ingresos: m.ventas,
+      egresos: m.ventas - m.margenNeto,
+      activo: null, pasivo: null, patrimonio: null, liquidez: null, endeudamiento: null,
+      estado: 'Cerrado',
+      resumen: `Facturación CS+MT de ${fmtMoney(m.ventas)} (CS ${fmtMoney(m.ventasCS)} / MT ${fmtMoney(m.ventasMT)}). Margen bruto ${fmtMoney(m.margenBruto)} (${(m.margenBrutoPct*100).toFixed(1)}%). Margen neto ${fmtMoney(m.margenNeto)} (${(m.margenNetoPct*100).toFixed(1)}%). ${m.pctCobrado===null ? 'Cobranza: sin dato para este mes.' : 'Cobrado: ' + (m.pctCobrado*100).toFixed(1) + '% de lo facturado.'} Fuente: Estado de Resultado MT y CS - Consolidado.`
+    }));
+  }
+  safeStorage.setItem(ESTADO_RESULTADO_CSMT_FLAG, '1');
+  return data;
+}
+
+function load() {
+  const raw = safeStorage.getItem(STORAGE_KEY);
+  let data = null;
+  if (raw) { try { data = JSON.parse(raw); } catch(e) {} }
+  if (!data) data = fixSeedMayor(seedData());
+  data = applyRealCompaniesMigration(data);
+  data = applyCierresCSMTMigration(data);
+  data = applyInversionesUTEMigration(data);
+  data = applyInformeGestionMECMigration(data);
+  data = applyModulosMECMigration(data);
+  data = applyLogoMECMigration(data);
+  data = applyConsolidacionCSMTMigration(data);
+  data = applyEstadoResultadoCSMTMigration(data);
+  ensureInversiones(data);
+  safeStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  return data;
+}
+function save() { safeStorage.setItem(STORAGE_KEY, JSON.stringify(state.data)); }
+
+const state = {
+  data: { empresas: [], inversiones: [] },
+  view: 'empresas', // 'empresas' | 'inversiones' | 'admin'
+  selectedId: null,
+  tab: 'resumen',
+  role: 'socio', // se reemplaza por el rol real del perfil después del login
+  esAdmin: false,
+  profile: null,
+  modMonth: {},
+  moduleSort: {},
+  upload: null,
+  invUI: { addingInversion: false, addingParticipanteFor: null, addingAporteFor: null }
+};
+
+function ensureModulos(emp) {
+  if (!emp) return;
+  if (!emp.modulos) emp.modulos = {};
+  ['ventas','deudores','proveedores','gastosCC'].forEach(k => {
+    if (!emp.modulos[k]) emp.modulos[k] = { colMap: null, datos: {} };
+  });
+  ensureNegocio(emp);
+}
+
+function fmtMoney(n) {
+  if (n === undefined || n === null || isNaN(n)) return '—';
+  return '$ ' + Number(n).toLocaleString('es-AR', {maximumFractionDigits: 0});
+}
+function fmtMes(m) {
+  if (!m) return '—';
+  const [y, mo] = m.split('-');
+  const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  return meses[parseInt(mo,10)-1] + ' ' + y;
+}
+function uid() { return 'e' + Math.random().toString(36).slice(2,9); }
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function getEmpresa(id) { return state.data.empresas.find(e => e.id === id); }
+
+function lastDayOfMonth(mes) {
+  const [y, m] = mes.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0));
+}
+function daysBetween(a, b) { return Math.round((b - a) / 86400000); }
+function agingBucket(venc, fechaCorte) {
+  if (!venc || !fechaCorte) return 'noVencido';
+  const dias = daysBetween(venc, fechaCorte);
+  if (dias <= 0) return 'noVencido';
+  if (dias <= 30) return 'd0_30';
+  if (dias <= 60) return 'd31_60';
+  if (dias <= 90) return 'd61_90';
+  return 'd90mas';
+}
+function parseNum(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  if (typeof v === 'number') return v;
+  let s = String(v).trim();
+  if (/^-?\d+(\.\d+)?$/.test(s)) return parseFloat(s);
+  s = s.replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+function parseDateVal(v) {
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v === 'number') return XlsxLite.excelSerialToDate(v);
+  const s = String(v).trim();
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return new Date(Date.UTC(+m[3], +m[2] - 1, +m[1]));
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+function guessColumn(headers, keywords) {
+  const lower = headers.map(h => h.toLowerCase());
+  for (const kw of keywords) {
+    const idx = lower.findIndex(h => h.includes(kw));
+    if (idx >= 0) return headers[idx];
+  }
+  return '';
+}
+
+function computeVentas(data, map) {
+  const porCliente = {};
+  let total = 0;
+  data.forEach(r => {
+    const cli = String(r[map.cliente] ?? 'Sin identificar').trim() || 'Sin identificar';
+    const monto = parseNum(r[map.monto]);
+    porCliente[cli] = (porCliente[cli] || 0) + monto;
+    total += monto;
+  });
+  const arr = Object.entries(porCliente).map(([cliente, monto]) => ({ cliente, monto, pct: total ? (monto / total) * 100 : 0 }));
+  arr.sort((a, b) => b.monto - a.monto);
+  return { total, porCliente: arr };
+}
+
+function computeCartera(data, map, fechaCorte, entityKey) {
+  const porEntidad = {};
+  let total = 0;
+  const aging = { noVencido: 0, d0_30: 0, d31_60: 0, d61_90: 0, d90mas: 0 };
+  data.forEach(r => {
+    const ent = String(r[map[entityKey]] ?? 'Sin identificar').trim() || 'Sin identificar';
+    const saldo = parseNum(r[map.saldo]);
+    total += saldo;
+    if (!porEntidad[ent]) porEntidad[ent] = { nombre: ent, saldo: 0, movimientos: [] };
+    porEntidad[ent].saldo += saldo;
+    const venc = parseDateVal(map.vencimiento ? r[map.vencimiento] : null);
+    const bucket = agingBucket(venc, fechaCorte);
+    porEntidad[ent].movimientos.push({
+      comprobante: map.comprobante ? r[map.comprobante] : '',
+      fecha: map.fecha ? r[map.fecha] : '',
+      vencimiento: map.vencimiento ? r[map.vencimiento] : '',
+      saldo,
+      bucket
+    });
+    aging[bucket] += saldo;
+  });
+  const arr = Object.values(porEntidad).sort((a, b) => b.saldo - a.saldo);
+  return { total, cantidad: arr.length, porEntidad: arr, aging, mayor: arr[0] || null };
+}
+
+// Agrupa gastos por Centro de Costos (p.ej. columna "Sucursal" del Libro IVA
+// Compras). Las filas sin Centro de Costos asignado se excluyen del reparto
+// y se informan aparte para que el auditor las revise en el archivo origen.
+function computeGastosCC(data, map) {
+  const porCentro = {};
+  let total = 0;
+  const excluidos = { cantidad: 0, monto: 0 };
+  const detalle = [];
+  data.forEach(r => {
+    const raw = map.centroCosto ? r[map.centroCosto] : null;
+    const centro = (raw === null || raw === undefined || String(raw).trim() === '') ? null : String(raw).trim();
+    const monto = parseNum(r[map.monto]);
+    if (!centro) {
+      excluidos.cantidad += 1;
+      excluidos.monto += monto;
+      return;
+    }
+    porCentro[centro] = (porCentro[centro] || 0) + monto;
+    total += monto;
+    detalle.push({
+      centro,
+      proveedor: map.proveedor ? r[map.proveedor] : '',
+      concepto: map.concepto ? r[map.concepto] : '',
+      monto
+    });
+  });
+  const arr = Object.entries(porCentro).map(([centro, monto]) => ({ centro, monto, pct: total ? (monto / total) * 100 : 0 }));
+  arr.sort((a, b) => b.monto - a.monto);
+  return { total, porCentro: arr, detalle, excluidos };
+}
+
+function renderSidebar() {
+  const list = document.getElementById('empresaList');
+  list.innerHTML = '';
+  list.style.display = state.view === 'empresas' ? '' : 'none';
+  document.getElementById('addEmpresaBtn').style.display = (state.view === 'empresas' && state.role === 'auditor') ? 'block' : 'none';
+
+  state.data.empresas.forEach(emp => {
+    const li = document.createElement('li');
+    li.className = 'empresa-item' + (state.view === 'empresas' && emp.id === state.selectedId ? ' active' : '');
+    const cuitHtml = emp.cuit ? `<span class="empresa-cuit">CUIT ${esc(emp.cuit)}</span>` : '';
+    const logoHtml = emp.logo ? `<img class="empresa-logo" src="${emp.logo}" alt="">` : '';
+    li.innerHTML = `${logoHtml}<span class="empresa-info"><span class="empresa-nombre">${esc(emp.nombre)}</span>${cuitHtml}</span>` + (state.role === 'auditor' ? `<span class="del" data-id="${emp.id}">✕</span>` : '');
+    li.addEventListener('click', (ev) => {
+      if (ev.target.classList.contains('del')) return;
+      state.view = 'empresas';
+      state.selectedId = emp.id;
+      state.tab = emp.informeGestion ? 'informeGestion' : 'resumen';
+      state.upload = null;
+      renderAll();
+    });
+    const delBtn = li.querySelector('.del');
+    if (delBtn) {
+      delBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (confirm(`¿Eliminar "${emp.nombre}" y todos sus datos?`)) {
+          state.data.empresas = state.data.empresas.filter(e => e.id !== emp.id);
+          if (state.selectedId === emp.id) {
+            state.selectedId = state.data.empresas.length ? state.data.empresas[0].id : null;
+          }
+          save(); renderAll();
+        }
+      });
+    }
+    list.appendChild(li);
+  });
+
+  document.getElementById('navEmpresas').classList.toggle('active', state.view === 'empresas');
+  document.getElementById('navInversiones').classList.toggle('active', state.view === 'inversiones');
+  document.getElementById('navEmpresas').addEventListener('click', () => {
+    state.view = 'empresas'; renderAll();
+  });
+  document.getElementById('navInversiones').addEventListener('click', () => {
+    state.view = 'inversiones'; state.invUI = { addingInversion: false, addingParticipanteFor: null, addingAporteFor: null }; renderAll();
+  });
+
+  const userNameEl = document.getElementById('userName');
+  const userRoleEl = document.getElementById('userRoleLabel');
+  if (userNameEl) userNameEl.textContent = (state.profile && (state.profile.nombre || state.profile.email)) || '';
+  if (userRoleEl) userRoleEl.textContent = state.role === 'auditor' ? 'Auditor (edita)' : 'Socio/Gerente (solo lectura)';
+  const adminBtn = document.getElementById('adminBtn');
+  if (adminBtn) {
+    adminBtn.style.display = state.esAdmin ? '' : 'none';
+    adminBtn.onclick = () => { state.view = 'admin'; renderAll(); };
+  }
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) logoutBtn.onclick = doLogout;
+}
+
+let chartInstance = null;
+let agingChartInstance = null;
+let inversionChartInstances = {};
+
+function renderMain() {
+  const main = document.getElementById('main');
+  const emp = getEmpresa(state.selectedId);
+
+  if (!emp) {
+    main.innerHTML = `<div class="empty-state"><h3>No hay empresas cargadas</h3><p>Agregá una empresa desde el panel izquierdo para empezar a cargar los cierres mensuales.</p></div>`;
+    return;
+  }
+  ensureModulos(emp);
+
+  const cierresOrdenados = [...emp.cierres].sort((a,b) => a.mes.localeCompare(b.mes));
+  const ultimo = cierresOrdenados[cierresOrdenados.length - 1];
+  const readonly = state.role === 'socio';
+
+  const tipoOptsHtml = Object.entries(BUSINESS_TYPES).map(([k,v]) => `<option value="${k}" ${emp.tipoNegocio===k?'selected':''}>${esc(v.label)}</option>`).join('');
+  const tipoHtml = readonly
+    ? `<span class="badge tipo-badge">${esc(BUSINESS_TYPES[emp.tipoNegocio] ? BUSINESS_TYPES[emp.tipoNegocio].label : 'Genérico')}</span>`
+    : `<select id="tipoNegocioSelect" class="tipo-select" title="Modelo de negocio">${tipoOptsHtml}</select>`;
+
+  const logoTopbarHtml = emp.logo ? `<img class="topbar-logo" src="${emp.logo}" alt="Logo ${esc(emp.nombre)}">` : '';
+
+  main.innerHTML = `
+    <div class="topbar">
+      <div class="topbar-title">
+        ${logoTopbarHtml}
+        <div>
+          <h2>${esc(emp.nombre)} <span class="badge">${emp.cierres.length} cierre${emp.cierres.length===1?'':'s'} cargado${emp.cierres.length===1?'':'s'}</span></h2>
+          <div class="meta">${emp.cuit ? 'CUIT ' + esc(emp.cuit) + ' · ' : ''}Último cierre: ${ultimo ? fmtMes(ultimo.mes) : '—'}</div>
+        </div>
+      </div>
+      <div class="tipo-negocio-wrap">
+        <label>Modelo de negocio</label>
+        ${tipoHtml}
+      </div>
+    </div>
+    ${readonly ? `<div class="readonly-banner">Estás en modo Socio/Gerente: vista de solo lectura, así la verían los destinatarios del informe.</div>` : ''}
+    <div class="tabs">
+      ${emp.informeGestion ? `<div class="tab" data-tab="informeGestion">Informe de Gestión</div>` : ''}
+      ${emp.informeGestion ? '' : `<div class="tab" data-tab="resumen">Resumen</div>`}
+      ${readonly ? '' : `<div class="tab" data-tab="cargar">Cargar cierre mensual</div>`}
+      ${emp.informeGestion ? '' : `<div class="tab" data-tab="historial">Historial</div>`}
+      ${(emp.informeGestion && emp.informeGestion.tipo === 'csmt') ? '' : `<div class="tab" data-tab="ventas">Ventas por Cliente</div>`}
+      ${(emp.informeGestion && emp.informeGestion.tipo === 'csmt') ? '' : `<div class="tab" data-tab="deudores">Deudores por Ventas</div>`}
+      ${emp.informeGestion ? '' : `<div class="tab" data-tab="proveedores">Deudas Comerciales</div>`}
+      ${emp.informeGestion ? '' : `<div class="tab" data-tab="gastosCC">Gastos por Centro de Costos</div>`}
+    </div>
+    <div id="tabContent"></div>
+  `;
+
+  const tipoSelect = document.getElementById('tipoNegocioSelect');
+  if (tipoSelect) {
+    tipoSelect.addEventListener('change', () => {
+      emp.tipoNegocio = tipoSelect.value;
+      save(); renderAll();
+    });
+  }
+
+  main.querySelectorAll('.tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tab === state.tab);
+    t.addEventListener('click', () => { state.tab = t.dataset.tab; state.upload = null; renderAll(); });
+  });
+  const esCSMT = !!(emp.informeGestion && emp.informeGestion.tipo === 'csmt');
+  const tabResumenFallback = emp.informeGestion ? 'informeGestion' : 'resumen';
+  if (readonly && state.tab === 'cargar') state.tab = tabResumenFallback;
+  if (state.tab === 'informeGestion' && !emp.informeGestion) state.tab = 'resumen';
+  if ((state.tab === 'resumen' || state.tab === 'historial' || state.tab === 'proveedores' || state.tab === 'gastosCC') && emp.informeGestion) state.tab = 'informeGestion';
+  if ((state.tab === 'ventas' || state.tab === 'deudores') && esCSMT) state.tab = 'informeGestion';
+
+  const content = document.getElementById('tabContent');
+  const moduleTabs = ['ventas','deudores','proveedores','gastosCC'];
+  if (state.tab === 'informeGestion') content.innerHTML = esCSMT ? tplInformeGestionCSMT(emp) : tplInformeGestion(emp);
+  else if (state.tab === 'resumen') content.innerHTML = tplResumen(emp, ultimo, cierresOrdenados);
+  else if (state.tab === 'cargar') content.innerHTML = tplCargar();
+  else if (state.tab === 'historial') content.innerHTML = tplHistorial(cierresOrdenados, readonly);
+  else if (moduleTabs.includes(state.tab)) content.innerHTML = tplModulo(state.tab, emp, readonly);
+
+  if (state.tab === 'informeGestion') { if (esCSMT) drawInformeGestionCSMTChart(emp.informeGestion); else drawInformeGestionChart(emp.informeGestion); }
+  if (state.tab === 'resumen') drawChart(cierresOrdenados);
+  if (state.tab === 'cargar') bindCargarForm(emp);
+  if (state.tab === 'historial') bindHistorial(emp);
+  if (moduleTabs.includes(state.tab)) bindModuloTab(state.tab, emp, readonly);
+}
+
+function tplResumen(emp, ultimo, cierres) {
+  if (!ultimo) {
+    return `<div class="empty-state"><h3>Todavía no hay cierres cargados</h3><p>Usá la pestaña "Cargar cierre mensual" para subir el primero.</p></div>`;
+  }
+  const resultado = ultimo.ingresos - ultimo.egresos;
+  return `
+    <div class="cards">
+      <div class="card"><div class="label">Ingresos (${fmtMes(ultimo.mes)})</div><div class="value">${fmtMoney(ultimo.ingresos)}</div></div>
+      <div class="card"><div class="label">Egresos (${fmtMes(ultimo.mes)})</div><div class="value">${fmtMoney(ultimo.egresos)}</div></div>
+      <div class="card"><div class="label">Resultado neto</div><div class="value ${resultado>=0?'pos':'neg'}">${fmtMoney(resultado)}</div></div>
+      <div class="card"><div class="label">Liquidez corriente</div><div class="value">${ultimo.liquidez ?? '—'}</div></div>
+      <div class="card"><div class="label">Endeudamiento</div><div class="value">${ultimo.endeudamiento ?? '—'}</div></div>
+    </div>
+    <div class="panel">
+      <h3>Evolución mensual</h3>
+      <div class="chart-wrap"><canvas id="evoChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Resumen ejecutivo — ${fmtMes(ultimo.mes)}</h3>
+      <p style="font-size:13.5px; line-height:1.6; color:#33404f; margin:0;">${esc(ultimo.resumen) || 'Sin comentario cargado para este mes.'}</p>
+    </div>
+  `;
+}
+
+function tplCargar() {
+  const today = new Date();
+  const defMonth = today.toISOString().slice(0,7);
+  return `
+    <div class="panel">
+      <h3>Cargar cierre mensual</h3>
+      <form class="cierre" id="cierreForm">
+        <div class="field"><label>Mes del cierre</label><input type="month" id="f_mes" value="${defMonth}" required></div>
+        <div class="field"><label>Estado</label>
+          <select id="f_estado"><option value="Cerrado">Cerrado</option><option value="Pendiente">Pendiente</option></select>
+        </div>
+        <div class="field"></div>
+        <div class="field"><label>Ingresos</label><input type="number" id="f_ingresos" placeholder="0" required></div>
+        <div class="field"><label>Egresos</label><input type="number" id="f_egresos" placeholder="0" required></div>
+        <div class="field"><label>Resultado neto (auto)</label><input type="text" id="f_resultado" disabled placeholder="se calcula solo"></div>
+        <div class="field"><label>Activo total</label><input type="number" id="f_activo" placeholder="0"></div>
+        <div class="field"><label>Pasivo total</label><input type="number" id="f_pasivo" placeholder="0"></div>
+        <div class="field"><label>Patrimonio neto</label><input type="number" id="f_patrimonio" placeholder="0"></div>
+        <div class="field"><label>Liquidez corriente</label><input type="number" step="0.01" id="f_liquidez" placeholder="ej: 1.4"></div>
+        <div class="field"><label>Endeudamiento</label><input type="number" step="0.01" id="f_endeudamiento" placeholder="ej: 0.5"></div>
+        <div class="field"></div>
+        <div class="field full"><label>Resumen ejecutivo del mes</label><textarea id="f_resumen" placeholder="Cómo cerró el mes la empresa: hechos relevantes, desvíos, riesgos, recomendaciones..."></textarea></div>
+        <div class="form-actions">
+          <button type="button" class="secondary" id="cancelBtn">Limpiar</button>
+          <button type="submit" class="primary">Guardar cierre</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+function tplHistorial(cierres, readonly) {
+  if (!cierres.length) {
+    return `<div class="empty-state"><h3>Sin cierres cargados todavía</h3></div>`;
+  }
+  const rows = [...cierres].reverse().map(c => {
+    const resultado = c.ingresos - c.egresos;
+    return `
+      <tr>
+        <td>${fmtMes(c.mes)}</td>
+        <td><span class="estado-pill ${c.estado === 'Cerrado' ? 'cerrado':'pendiente'}">${c.estado}</span></td>
+        <td>${fmtMoney(c.ingresos)}</td>
+        <td>${fmtMoney(c.egresos)}</td>
+        <td style="color:${resultado>=0?'#1a7a4c':'#c0392b'}; font-weight:600;">${fmtMoney(resultado)}</td>
+        <td>${c.liquidez ?? '—'}</td>
+        <td>${c.endeudamiento ?? '—'}</td>
+        ${readonly ? '' : `<td class="row-actions"><button class="del" data-mes="${c.mes}">Eliminar</button></td>`}
+      </tr>`;
+  }).join('');
+  return `
+    <div class="panel">
+      <h3>Historial de cierres</h3>
+      <table class="hist">
+        <thead><tr>
+          <th>Mes</th><th>Estado</th><th>Ingresos</th><th>Egresos</th><th>Resultado</th><th>Liquidez</th><th>Endeud.</th>${readonly?'':'<th></th>'}
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function drawChart(cierres) {
+  const canvas = document.getElementById('evoChart');
+  if (!canvas) return;
+  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+  const labels = cierres.map(c => fmtMes(c.mes));
+  chartInstance = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Ingresos', data: cierres.map(c => c.ingresos), borderColor: '#1e63b8', backgroundColor: 'rgba(30,99,184,.08)', tension: .25, fill: true },
+        { label: 'Egresos', data: cierres.map(c => c.egresos), borderColor: '#c0392b', backgroundColor: 'rgba(192,57,43,.06)', tension: .25, fill: true },
+        { label: 'Resultado neto', data: cierres.map(c => c.ingresos - c.egresos), borderColor: '#1a7a4c', borderDash: [5,3], tension: .25 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } },
+      scales: { y: { ticks: { callback: v => (v/1e6).toFixed(1)+'M' } } }
+    }
+  });
+}
+
+function bindCargarForm(emp) {
+  const form = document.getElementById('cierreForm');
+  const ing = document.getElementById('f_ingresos');
+  const egr = document.getElementById('f_egresos');
+  const res = document.getElementById('f_resultado');
+  function updateResultado() {
+    const r = (parseFloat(ing.value)||0) - (parseFloat(egr.value)||0);
+    res.value = fmtMoney(r);
+  }
+  ing.addEventListener('input', updateResultado);
+  egr.addEventListener('input', updateResultado);
+  document.getElementById('cancelBtn').addEventListener('click', () => { state.tab = 'cargar'; renderAll(); });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const mes = document.getElementById('f_mes').value;
+    if (!mes) return;
+    const nuevo = {
+      mes,
+      estado: document.getElementById('f_estado').value,
+      ingresos: parseFloat(document.getElementById('f_ingresos').value) || 0,
+      egresos: parseFloat(document.getElementById('f_egresos').value) || 0,
+      activo: parseFloat(document.getElementById('f_activo').value) || null,
+      pasivo: parseFloat(document.getElementById('f_pasivo').value) || null,
+      patrimonio: parseFloat(document.getElementById('f_patrimonio').value) || null,
+      liquidez: parseFloat(document.getElementById('f_liquidez').value) || null,
+      endeudamiento: parseFloat(document.getElementById('f_endeudamiento').value) || null,
+      resumen: document.getElementById('f_resumen').value || ''
+    };
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Guardando...'; }
+    const { error } = await sb.from('cierres').upsert(
+      { empresa_id: emp.id, mes: nuevo.mes, ingresos: nuevo.ingresos, egresos: nuevo.egresos,
+        activo: nuevo.activo, pasivo: nuevo.pasivo, patrimonio: nuevo.patrimonio,
+        liquidez: nuevo.liquidez, endeudamiento: nuevo.endeudamiento,
+        estado: nuevo.estado, resumen: nuevo.resumen },
+      { onConflict: 'empresa_id,mes' }
+    );
+    if (error) {
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Guardar cierre'; }
+      alert('No se pudo guardar el cierre: ' + error.message);
+      return;
+    }
+    emp.cierres = emp.cierres.filter(c => c.mes !== mes);
+    emp.cierres.push(nuevo);
+    state.tab = 'resumen';
+    renderAll();
+  });
+}
+
+function bindHistorial(emp) {
+  document.querySelectorAll('#tabContent .row-actions .del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mes = btn.dataset.mes;
+      if (confirm(`¿Eliminar el cierre de ${fmtMes(mes)}?`)) {
+        emp.cierres = emp.cierres.filter(c => c.mes !== mes);
+        save(); renderAll();
+      }
+    });
+  });
+}
+
+/* ---------------- Módulos: Ventas / Deudores / Proveedores ---------------- */
+
+function currentMonthDefault() { return new Date().toISOString().slice(0,7); }
+
+function tplModulo(kind, emp, readonly) {
+  const cfg = MODULE_CONFIG[kind];
+  const modState = emp.modulos[kind];
+  const monthKey = emp.id + '_' + kind;
+  if (!state.modMonth[monthKey]) {
+    const cur = currentMonthDefault();
+    const mesesConDatos = Object.keys(modState.datos).sort();
+    state.modMonth[monthKey] = modState.datos[cur] ? cur : (mesesConDatos.length ? mesesConDatos[mesesConDatos.length-1] : cur);
+  }
+  const mes = state.modMonth[monthKey];
+  const datosMes = modState.datos[mes];
+
+  let body;
+  if (state.upload && state.upload.kind === kind) {
+    body = tplUploadFlow(kind);
+  } else if (datosMes) {
+    if (kind === 'ventas') body = tplVentasResultados(mes, datosMes, readonly);
+    else if (kind === 'gastosCC') body = tplGastosCCResultados(mes, datosMes, readonly);
+    else body = tplCarteraResultados(kind, emp, mes, datosMes, readonly);
+  } else if (readonly) {
+    body = `<div class="empty-state"><h3>Sin datos cargados para ${fmtMes(mes)}</h3><p>El auditor todavía no subió el archivo de este módulo para este mes.</p></div>`;
+  } else {
+    body = tplUploadBox(kind);
+  }
+
+  return `
+    <div class="module-toolbar">
+      <strong>${cfg.label}</strong>
+      <div class="month-picker"><input type="month" id="modMonthInput" value="${mes}"></div>
+    </div>
+    ${body}
+  `;
+}
+
+function tplUploadBox(kind) {
+  const cfg = MODULE_CONFIG[kind];
+  let hint = 'Formato .xlsx. En el siguiente paso vas a poder confirmar qué columna corresponde a cada dato.';
+  if (kind === 'ventas') hint = 'Formato .xlsx. Funciona con el export del Libro IVA Digital de ARCA (columna "Denominación Receptor" e "Imp. Total") o con cualquier planilla de ventas. En el siguiente paso confirmás qué columna corresponde a cada dato.';
+  if (kind === 'gastosCC') hint = 'Formato .xlsx. Funciona con el Libro IVA Compras "por Sucursal" (columna "Sucursal" como Centro de Costos y "Total Operacion" como Monto). Las notas de crédito ya vienen en negativo, se netean solas. En el siguiente paso confirmás las columnas.';
+  return `
+    <div class="upload-box">
+      <div class="icon">📎</div>
+      <div>Adjuntá el Excel de "${cfg.label}" correspondiente a este mes</div>
+      <div><input type="file" accept=".xlsx" id="fileInput"></div>
+      <div class="file-meta">${hint}</div>
+    </div>
+  `;
+}
+
+function tplUploadFlow(kind) {
+  const cfg = MODULE_CONFIG[kind];
+  const up = state.upload;
+  if (up.sheetNames.length > 1 && !up.sheetChosen) {
+    const opts = up.sheetNames.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    return `
+      <div class="panel">
+        <h3>Elegí la hoja del Excel a usar</h3>
+        <div class="sheet-picker"><select id="sheetSelect">${opts}</select></div>
+        <div class="form-actions">
+          <button class="secondary" id="uploadCancel">Cancelar</button>
+          <button class="primary" id="sheetConfirm">Continuar</button>
+        </div>
+      </div>
+    `;
+  }
+  const headers = up.headers || [];
+  const fieldsHtml = cfg.fields.map(f => {
+    const optsHtml = ['<option value="">— Sin asignar —</option>']
+      .concat(headers.map(h => `<option value="${esc(h)}" ${up.mapping[f.key]===h?'selected':''}>${esc(h)}</option>`))
+      .join('');
+    return `
+      <div class="field">
+        <label>${esc(f.label)} ${f.required ? '<span class="req">*</span>' : ''}</label>
+        <select data-field="${f.key}" class="mapSelect">${optsHtml}</select>
+      </div>
+    `;
+  }).join('');
+  return `
+    <div class="panel">
+      <h3>Confirmá qué columna corresponde a cada dato</h3>
+      <div class="note">Detectamos ${headers.length} columnas en "${esc(up.sheetName)}" (${up.rows.length} filas de datos). Ajustá el mapeo si hace falta antes de procesar.</div>
+      <div class="mapping-form">${fieldsHtml}</div>
+      <div class="form-actions">
+        <button class="secondary" id="uploadCancel">Cancelar</button>
+        <button class="primary" id="mappingConfirm">Procesar y guardar</button>
+      </div>
+    </div>
+  `;
+}
+
+function tplRanking(list, total, valueKey) {
+  if (!list.length) return '<p>Sin datos.</p>';
+  const max = Math.max.apply(null, list.map(x => x[valueKey])) || 1;
+  return list.map(item => {
+    const val = item[valueKey];
+    const name = item.cliente || item.nombre || item.proveedor || item.centro;
+    const pct = total ? (val/total*100) : 0;
+    return `
+      <div class="rank-bar-wrap">
+        <div class="name" title="${esc(name)}">${esc(name)}</div>
+        <div class="rank-bar-track"><div class="rank-bar-fill" style="width:${(val/max*100).toFixed(1)}%"></div></div>
+        <div class="val">${fmtMoney(val)} (${pct.toFixed(1)}%)</div>
+      </div>`;
+  }).join('');
+}
+
+function formatCell(key, val) {
+  if (key === 'monto' || key === 'saldo') return fmtMoney(val);
+  if (key === 'pct') return (val !== undefined && val !== null) ? val.toFixed(1)+'%' : '—';
+  if (val === null || val === undefined || val === '') return '—';
+  return esc(val);
+}
+
+function tplTablaGenerica(tableId, keys, labels, rows, defaultKey, defaultDir) {
+  if (!rows.length) return `<div class="panel"><h3>Detalle</h3><p>Sin filas para mostrar.</p></div>`;
+  const sort = state.moduleSort[tableId] || { key: defaultKey, dir: defaultDir };
+  const sorted = [...rows].sort((a,b) => {
+    let va = a[sort.key], vb = b[sort.key];
+    if (typeof va === 'number' && typeof vb === 'number') return sort.dir==='asc'? va-vb : vb-va;
+    va = (va??'').toString(); vb = (vb??'').toString();
+    return sort.dir==='asc'? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+  const theadCells = keys.map(k => `<th class="sortable" data-tableid="${tableId}" data-key="${k}">${esc(labels[k])}${sort.key===k? `<span class="arrow">${sort.dir==='asc'?'▲':'▼'}</span>`:''}</th>`).join('');
+  const bodyRows = sorted.map(row => `<tr>${keys.map(k => `<td>${formatCell(k, row[k])}</td>`).join('')}</tr>`).join('');
+  return `
+    <div class="panel">
+      <h3>Detalle</h3>
+      <div style="max-height:420px; overflow:auto;">
+        <table class="hist"><thead><tr>${theadCells}</tr></thead><tbody>${bodyRows}</tbody></table>
+      </div>
+    </div>
+  `;
+}
+
+function tplVentasResultados(mes, datosMes, readonly) {
+  const r = datosMes.resultado;
+  const top5sum = r.porCliente.slice(0,5).reduce((s,c)=>s+c.monto,0);
+  const concentracion = r.total ? (top5sum/r.total*100) : 0;
+  return `
+    ${datosMes.origen === 'informeGestion' ? `<div class="note">Cargado automáticamente desde ${esc(datosMes.sheetUsada)}.</div>` : ''}
+    <div class="cards">
+      <div class="card"><div class="label">Ventas totales — ${fmtMes(mes)}</div><div class="value">${fmtMoney(r.total)}</div></div>
+      <div class="card"><div class="label">Clientes facturados</div><div class="value">${r.porCliente.length}</div></div>
+      <div class="card"><div class="label">Cliente principal</div><div class="value" style="font-size:15px;">${r.porCliente[0]?esc(r.porCliente[0].cliente):'—'}</div></div>
+      <div class="card"><div class="label">Concentración top 5</div><div class="value">${concentracion.toFixed(1)}%</div></div>
+    </div>
+    <div class="panel">
+      <h3>Ranking de clientes — ${fmtMes(mes)}</h3>
+      ${tplRanking(r.porCliente.slice(0,10), r.total, 'monto')}
+    </div>
+    ${tplTablaGenerica('ventas', ['cliente','monto','pct'], {cliente:'Cliente',monto:'Monto',pct:'% participación'}, r.porCliente, 'monto', 'desc')}
+    ${!readonly ? `<div class="remap-row"><button class="secondary" id="remapBtn">Reemplazar archivo de este mes</button></div>` : ''}
+  `;
+}
+
+function tplGastosCCResultados(mes, datosMes, readonly) {
+  const r = datosMes.resultado;
+  const principal = r.porCentro[0];
+  const warningHtml = (r.excluidos && r.excluidos.cantidad > 0) ? `
+    <div class="readonly-banner" style="background:#fde4e0;border-color:#f0b8ab;color:#8a2e1c;">
+      ⚠ ${r.excluidos.cantidad} fila${r.excluidos.cantidad===1?'':'s'} sin Centro de Costos asignado (por ${fmtMoney(r.excluidos.monto)}) se excluyeron del reparto. Revisá esas filas en el archivo origen — suelen ser filas de subtotal o comprobantes sin imputar.
+    </div>` : '';
+  return `
+    ${warningHtml}
+    <div class="cards">
+      <div class="card"><div class="label">Gasto total — ${fmtMes(mes)}</div><div class="value">${fmtMoney(r.total)}</div></div>
+      <div class="card"><div class="label">Centros de costos</div><div class="value">${r.porCentro.length}</div></div>
+      <div class="card"><div class="label">Centro principal</div><div class="value" style="font-size:15px;">${principal?esc(principal.centro):'—'}</div></div>
+      <div class="card"><div class="label">% del principal</div><div class="value">${principal?principal.pct.toFixed(1):'0.0'}%</div></div>
+    </div>
+    <div class="panel">
+      <h3>Gasto por Centro de Costos — ${fmtMes(mes)}</h3>
+      ${tplRanking(r.porCentro, r.total, 'monto')}
+    </div>
+    ${tplTablaGenerica('gastosCC', ['centro','proveedor','concepto','monto'], {centro:'Centro de Costos',proveedor:'Proveedor',concepto:'Concepto',monto:'Monto'}, r.detalle, 'monto', 'desc')}
+    ${!readonly ? `<div class="remap-row"><button class="secondary" id="remapBtn">Reemplazar archivo de este mes</button></div>` : ''}
+  `;
+}
+
+function tplCarteraResultados(kind, emp, mes, datosMes, readonly) {
+  const cfg = MODULE_CONFIG[kind];
+  const r = datosMes.resultado;
+  let dso = null;
+  if (kind === 'deudores') {
+    const ventasMod = emp.modulos.ventas;
+    const ventasMes = ventasMod && ventasMod.datos[mes] ? ventasMod.datos[mes].resultado.total : null;
+    if (ventasMes) dso = (r.total / ventasMes) * 30;
+  }
+  const agingChips = Object.keys(AGING_LABELS).map(k => `
+    <div class="aging-chip" style="background:${AGING_COLORS[k].bg}">
+      <div class="lbl" style="color:${AGING_COLORS[k].fg}">${AGING_LABELS[k]}</div>
+      <div class="amt" style="color:${AGING_COLORS[k].fg}">${fmtMoney(r.aging[k]||0)}</div>
+    </div>
+  `).join('');
+  const detalle = [];
+  r.porEntidad.forEach(ent => {
+    ent.movimientos.forEach(m => {
+      detalle.push({ entidad: ent.nombre, comprobante: m.comprobante, fecha: m.fecha, vencimiento: m.vencimiento, saldo: m.saldo, estado: AGING_LABELS[m.bucket] });
+    });
+  });
+  return `
+    ${datosMes.origen === 'informeGestion' ? `<div class="note">Cargado automáticamente desde ${esc(datosMes.sheetUsada)}.</div>` : ''}
+    <div class="cards">
+      <div class="card"><div class="label">Total ${kind==='deudores'?'cartera':'a pagar'} — ${fmtMes(mes)}</div><div class="value">${fmtMoney(r.total)}</div></div>
+      <div class="card"><div class="label">${cfg.entityLabel}s con saldo</div><div class="value">${r.cantidad}</div></div>
+      <div class="card"><div class="label">Mayor ${kind==='deudores'?'deudor':'acreedor'}</div><div class="value" style="font-size:15px;">${r.mayor?esc(r.mayor.nombre):'—'}</div></div>
+      ${kind==='deudores' ? `<div class="card"><div class="label">DSO estimado</div><div class="value">${dso!==null?dso.toFixed(0)+' días':'N/D'}</div></div>` : ''}
+    </div>
+    <div class="panel">
+      <h3>Antigüedad de saldos</h3>
+      ${datosMes.sinAntiguedad ? `<div class="note">Este mes se cargó desde el Informe de Gestión, que no trae fecha de vencimiento por comprobante — no hay apertura real por antigüedad (todo se muestra como "A vencer").</div>` : ''}
+      <div class="aging-grid">${agingChips}</div>
+      <div class="chart-wrap" style="height:220px;"><canvas id="agingChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Ranking por ${cfg.entityLabel.toLowerCase()}</h3>
+      ${tplRanking(r.porEntidad.slice(0,10), r.total, 'saldo')}
+    </div>
+    ${tplTablaGenerica(kind, ['entidad','comprobante','fecha','vencimiento','saldo','estado'], {entidad:cfg.entityLabel,comprobante:'Comprobante',fecha:'Fecha',vencimiento:'Vencimiento',saldo:'Saldo',estado:'Estado'}, detalle, 'saldo', 'desc')}
+    ${!readonly ? `<div class="remap-row"><button class="secondary" id="remapBtn">Reemplazar archivo de este mes</button></div>` : ''}
+  `;
+}
+
+function drawAgingChart(aging) {
+  const canvas = document.getElementById('agingChart');
+  if (!canvas) return;
+  if (agingChartInstance) { agingChartInstance.destroy(); agingChartInstance = null; }
+  const keys = Object.keys(AGING_LABELS);
+  agingChartInstance = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: keys.map(k => AGING_LABELS[k]),
+      datasets: [{ label: 'Saldo', data: keys.map(k => aging[k]||0), backgroundColor: keys.map(k => AGING_COLORS[k].bar) }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { ticks: { callback: v => (v/1000).toFixed(0)+'k' } } }
+    }
+  });
+}
+
+/* ---------------- Informe de Gestión (por empresa, ej. MEC) ---------------- */
+
+function fmtPct1(n) {
+  if (n === undefined || n === null || isNaN(n)) return '—';
+  return (n*100).toLocaleString('es-AR', {minimumFractionDigits:1, maximumFractionDigits:1}) + '%';
+}
+
+function tplInformeGestion(emp) {
+  const ig = emp.informeGestion;
+  if (!ig) return `<div class="empty-state"><h3>Sin informe de gestión cargado</h3></div>`;
+  const k = ig.kpisJulio;
+  const varPct = k.ratioJulJun - 1;
+
+  const erUltimo = ig.erMensual[ig.erMensual.length - 1];
+  const cardsHtml = `
+    <div class="cards">
+      <div class="card"><div class="label">Facturación real (${fmtMesCorto(erUltimo.mes)})</div><div class="value">${fmtMoney(k.facturacionReal)}</div></div>
+      <div class="card"><div class="label">Var. vs mes anterior</div><div class="value ${varPct>=0?'pos':'neg'}">${varPct>=0?'+':''}${fmtPct1(varPct)}</div></div>
+      <div class="card"><div class="label">Utilidad operativa</div><div class="value">${fmtMoney(k.utilidadOperativa)}</div></div>
+      <div class="card"><div class="label">Margen operativo</div><div class="value">${fmtPct1(k.margenOperativo)}</div></div>
+      <div class="card"><div class="label">Utilidad neta</div><div class="value pos">${fmtMoney(k.utilidadNeta)}</div></div>
+      <div class="card"><div class="label">Margen neto</div><div class="value">${fmtPct1(k.margenNeto)}</div></div>
+    </div>
+  `;
+
+  const d = ig.deudores;
+  const deudoresCards = `
+    <div class="cards">
+      <div class="card"><div class="label">Total deudores por ventas</div><div class="value">${fmtMoney(d.total)}</div></div>
+      <div class="card"><div class="label">Top 1</div><div class="value">${fmtPct1(d.concentracion.top1)}</div></div>
+      <div class="card"><div class="label">Top 5</div><div class="value">${fmtPct1(d.concentracion.top5)}</div></div>
+      <div class="card"><div class="label">Top 10</div><div class="value">${fmtPct1(d.concentracion.top10)}</div></div>
+    </div>
+  `;
+  const deudoresRanking = tplRanking(d.top.slice(0,10).map(x=>({...x, monto:x.saldo})), d.total, 'monto');
+
+  const mv = ig.mezclaVentas;
+  const mezclaCards = `
+    <div class="cards">
+      <div class="card"><div class="label">APROSS + Ministerio de Salud</div><div class="value">${fmtPct1(mv.aprossMinisterio.pct)}</div></div>
+      <div class="card"><div class="label">Otros clientes</div><div class="value">${fmtPct1(mv.otros.pct)}</div></div>
+    </div>
+  `;
+  const mezclaRanking = tplRanking(mv.top.slice(0,10).map(x=>({...x, monto:x.monto})), mv.total, 'monto');
+
+  const pr = ig.proveedores;
+  const provCards = `
+    <div class="cards">
+      <div class="card"><div class="label">Total proveedores</div><div class="value">${fmtMoney(pr.total)}</div></div>
+      <div class="card"><div class="label">Top 3 proveedores</div><div class="value">${fmtPct1(pr.top3pct)}</div></div>
+    </div>
+  `;
+  const provRanking = tplRanking(pr.top.map(x=>({...x, monto:x.saldo})), pr.total, 'monto');
+
+  const pat = ig.patrimonio;
+  const patCards = `
+    <div class="cards">
+      <div class="card"><div class="label">Patrimonio neto (ARS)</div><div class="value">${fmtMoney(pat.netoARS)}</div></div>
+      <div class="card"><div class="label">Patrimonio neto (USD, calc. TC ${pat.tipoCambio})</div><div class="value">${fmtUsdObra(pat.netoUSDCalculado)}</div></div>
+      <div class="card"><div class="label">Inversión FCI Macro (ARS)</div><div class="value">${fmtMoney(pat.inversionFCIMacroARS)}</div></div>
+      <div class="card"><div class="label">Respaldo FCI s/ deudores</div><div class="value">${fmtPct1(pat.respaldoFCIsobreDeudores)}</div></div>
+    </div>
+  `;
+
+  const lecturaHtml = ig.lectura.map(t => `<p style="font-size:13.5px; line-height:1.6; color:#33404f; margin:0 0 10px 0;">• ${esc(t)}</p>`).join('');
+  const hallazgosHtml = ig.hallazgos.map(t => `<p style="font-size:12.5px; line-height:1.55; color:#8a6300; margin:0 0 8px 0;">⚠ ${esc(t)}</p>`).join('');
+
+  const letterheadHtml = `
+    <div class="report-letterhead">
+      ${emp.logo ? `<img class="report-logo" src="${emp.logo}" alt="Logo ${esc(emp.nombre)}">` : ''}
+      <div class="report-letterhead-text">
+        <div class="report-eyebrow">Informe de Gestión</div>
+        <h2>${esc(emp.nombre)}</h2>
+        <div class="report-period">Período: ${fmtMesCorto(ig.periodo)} 20${ig.periodo.slice(2,4)} · Preparado para los Socios</div>
+      </div>
+    </div>
+  `;
+
+  return `
+    ${letterheadHtml}
+    <div class="note">Fuente: ${esc(ig.fuente)}. Período: ${fmtMesCorto(ig.periodo)} 20${ig.periodo.slice(2,4)}.</div>
+    ${cardsHtml}
+    <div class="panel">
+      <h3>Evolución mensual — Ventas, Utilidad operativa y Utilidad neta</h3>
+      <div class="chart-wrap"><canvas id="igChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <h3>Concentración de deudores por ventas — ${fmtMesCorto(erUltimo.mes)}</h3>
+      ${deudoresCards}
+      ${deudoresRanking}
+    </div>
+    <div class="panel">
+      <h3>Mezcla de ventas — ${fmtMesCorto(erUltimo.mes)}</h3>
+      ${mezclaCards}
+      ${mezclaRanking}
+    </div>
+    <div class="panel">
+      <h3>Proveedores — saldo a la fecha</h3>
+      ${provCards}
+      ${provRanking}
+    </div>
+    <div class="panel">
+      <h3>Patrimonio e inversiones financieras</h3>
+      ${patCards}
+      <p class="file-meta" style="margin-top:8px;">No incluye la inversión en la UTE Los Boulevares: se muestra aparte, en "Inversiones (UTE)" en el panel izquierdo.</p>
+    </div>
+    <div class="panel">
+      <h3>Lectura del mes</h3>
+      ${lecturaHtml}
+    </div>
+    <div class="panel" style="background:#fffaf0; border-color:#f3d98a;">
+      <h3>Notas del auditor — hallazgos a reconciliar</h3>
+      ${hallazgosHtml}
+    </div>
+  `;
+}
+
+let igChartInstance = null;
+function drawInformeGestionChart(ig) {
+  const canvas = document.getElementById('igChart');
+  if (!canvas || !ig) return;
+  if (igChartInstance) { igChartInstance.destroy(); igChartInstance = null; }
+  const labels = ig.erMensual.map(m => fmtMesCorto(m.mes));
+  igChartInstance = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Ventas totales', data: ig.erMensual.map(m => m.totalVentas), borderColor: '#1e63b8', backgroundColor: 'rgba(30,99,184,.08)', tension: .25, fill: true },
+        { label: 'Utilidad operativa', data: ig.erMensual.map(m => m.utilidadOperativa), borderColor: '#b3711a', tension: .25 },
+        { label: 'Utilidad neta', data: ig.erMensual.map(m => m.utilidadNeta), borderColor: '#1a7a4c', borderDash: [5,3], tension: .25 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } },
+      scales: { y: { ticks: { callback: v => (v/1e6).toFixed(0)+'M' } } }
+    }
+  });
+}
+
+// Informe de Gestión adaptado a CS y MT (Consolidado): no es una droguería
+// con clientes/proveedores/mezcla de ventas como MEC, sino dos empresas que
+// alquilan bienes muebles e inmueble entre sí y a terceros. Por eso usa su
+// propio template en vez de tplInformeGestion (que asume ese negocio "salud").
+function tplInformeGestionCSMT(emp) {
+  const ig = emp.informeGestion;
+  if (!ig) return `<div class="empty-state"><h3>Sin informe de gestión cargado</h3></div>`;
+  const um = ig.erMensual[ig.erMensual.length - 1];
+  const prev = ig.erMensual[ig.erMensual.length - 2];
+  const varMargenNeto = prev ? (um.margenNetoPct - prev.margenNetoPct) : null;
+
+  const cardsHtml = `
+    <div class="cards">
+      <div class="card"><div class="label">Facturación (${fmtMesCorto(um.mes)})</div><div class="value">${fmtMoney(um.ventas)}</div></div>
+      <div class="card"><div class="label">CS / MT</div><div class="value" style="font-size:15px;">${fmtMoney(um.ventasCS)} / ${fmtMoney(um.ventasMT)}</div></div>
+      <div class="card"><div class="label">% Cobrado</div><div class="value">${fmtPct1(um.pctCobrado)}</div></div>
+      <div class="card"><div class="label">Margen bruto</div><div class="value">${fmtPct1(um.margenBrutoPct)}</div></div>
+      <div class="card"><div class="label">Margen neto</div><div class="value pos">${fmtPct1(um.margenNetoPct)}</div></div>
+      <div class="card"><div class="label">Var. margen neto vs. mes anterior</div><div class="value ${varMargenNeto>=0?'pos':'neg'}">${varMargenNeto===null?'—':(varMargenNeto>=0?'+':'')+fmtPct1(varMargenNeto)}</div></div>
+    </div>
+  `;
+
+  const erRows = ig.erMensual.map(m => `
+    <tr>
+      <td>${esc(fmtMesCorto(m.mes))}</td>
+      <td>${fmtMoney(m.ventas)}</td>
+      <td>${fmtMoney(m.margenBruto)}</td>
+      <td>${fmtPct1(m.margenBrutoPct)}</td>
+      <td>${fmtMoney(m.totalGastosOperativos)}</td>
+      <td>${fmtMoney(m.margenNeto)}</td>
+      <td>${fmtPct1(m.margenNetoPct)}</td>
+      <td>${fmtPct1(m.pctCobrado)}</td>
+    </tr>`).join('');
+  const erTabla = `
+    <div class="panel">
+      <h3>Estado de Resultado mensual — CS y MT Consolidado</h3>
+      <table class="hist">
+        <thead><tr><th>Mes</th><th>Ventas</th><th>Margen Bruto</th><th>% s/Ventas</th><th>Gastos Operativos</th><th>Margen Neto</th><th>% s/Ventas</th><th>% Cobrado</th></tr></thead>
+        <tbody>${erRows}</tbody>
+      </table>
+    </div>
+  `;
+
+  const dg = ig.desgloseGastosUltimoMes;
+  const desgloseRows = dg.items.map(it => `
+    <tr><td>${esc(it.concepto)}</td><td>${fmtMoney(it.monto)}</td><td>${fmtPct1(it.pct)}</td></tr>
+  `).join('');
+  const desglosePanel = `
+    <div class="panel">
+      <h3>Detalle de gastos operativos — ${fmtMesCorto(dg.mes)}</h3>
+      <table class="hist">
+        <thead><tr><th>Concepto</th><th>Monto</th><th>% s/Gastos Operativos</th></tr></thead>
+        <tbody>${desgloseRows}</tbody>
+      </table>
+    </div>
+  `;
+
+  const cob = ig.cobranza;
+  const cobranzaPanel = `
+    <div class="panel">
+      <h3>Cobranza</h3>
+      <div class="cards">
+        <div class="card"><div class="label">Pendiente dif. alquiler Docta (MT)</div><div class="value neg">${fmtMoney(cob.pendienteAlquilerDocta)}</div></div>
+      </div>
+      <p class="file-meta" style="margin-top:8px;">${esc(cob.notaDocta)}</p>
+    </div>
+  `;
+
+  const inv = ig.inversionUSD;
+  const inversionPanel = `
+    <div class="panel">
+      <h3>Exposición en dólares</h3>
+      <div class="cards">
+        <div class="card"><div class="label">Aporte UTE ${esc(inv.boulevaresFuenteId)} (${fmtMesCorto(um.mes)})</div><div class="value">${fmtUsdObra(inv.boulevares1AporteMes)}</div></div>
+        <div class="card"><div class="label">Aportado acumulado — Boulevares 1</div><div class="value">${fmtUsdObra(inv.boulevares1Acumulado)}</div></div>
+        <div class="card"><div class="label">Aportado acumulado — Boulevares 2 (terreno)</div><div class="value">${fmtUsdObra(inv.boulevares2Acumulado)}</div></div>
+        <div class="card"><div class="label">Caja de ahorro USD</div><div class="value">${fmtUsdObra(inv.cajaAhorroUSD)}</div></div>
+        <div class="card"><div class="label">Compra dólar MEP del mes</div><div class="value">${fmtUsdObra(inv.compraDolarMEPMes)}</div></div>
+      </div>
+      <p class="file-meta" style="margin-top:8px;">Detalle completo de la inversión en la UTE Los Boulevares disponible en "Inversiones (UTE)", en el panel izquierdo.</p>
+    </div>
+  `;
+
+  const lecturaHtml = ig.lectura.map(t => `<p style="font-size:13.5px; line-height:1.6; color:#33404f; margin:0 0 10px 0;">• ${esc(t)}</p>`).join('');
+  const hallazgosHtml = ig.hallazgos.map(t => `<p style="font-size:12.5px; line-height:1.55; color:#8a6300; margin:0 0 8px 0;">⚠ ${esc(t)}</p>`).join('');
+
+  const letterheadHtml = `
+    <div class="report-letterhead">
+      ${emp.logo ? `<img class="report-logo" src="${emp.logo}" alt="Logo ${esc(emp.nombre)}">` : ''}
+      <div class="report-letterhead-text">
+        <div class="report-eyebrow">Informe de Gestión</div>
+        <h2>${esc(emp.nombre)}</h2>
+        <div class="report-period">Período: ${fmtMesCorto(ig.periodo)} 20${ig.periodo.slice(2,4)} · Preparado para los Socios</div>
+      </div>
+    </div>
+  `;
+
+  return `
+    ${letterheadHtml}
+    <div class="note">Fuente: ${esc(ig.fuente)}. Período: ${fmtMesCorto(ig.periodo)} 20${ig.periodo.slice(2,4)}.</div>
+    ${cardsHtml}
+    <div class="panel">
+      <h3>Evolución mensual — Ventas, Margen Bruto y Margen Neto</h3>
+      <div class="chart-wrap"><canvas id="igChartCSMT"></canvas></div>
+    </div>
+    ${erTabla}
+    ${desglosePanel}
+    ${cobranzaPanel}
+    ${inversionPanel}
+    <div class="panel">
+      <h3>Lectura del mes</h3>
+      ${lecturaHtml}
+    </div>
+    <div class="panel" style="background:#fffaf0; border-color:#f3d98a;">
+      <h3>Notas del auditor — hallazgos a reconciliar</h3>
+      ${hallazgosHtml}
+    </div>
+  `;
+}
+
+let igChartCSMTInstance = null;
+function drawInformeGestionCSMTChart(ig) {
+  const canvas = document.getElementById('igChartCSMT');
+  if (!canvas || !ig) return;
+  if (igChartCSMTInstance) { igChartCSMTInstance.destroy(); igChartCSMTInstance = null; }
+  const labels = ig.erMensual.map(m => fmtMesCorto(m.mes));
+  igChartCSMTInstance = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Ventas', data: ig.erMensual.map(m => m.ventas), borderColor: '#1e63b8', backgroundColor: 'rgba(30,99,184,.08)', tension: .25, fill: true },
+        { label: 'Margen bruto', data: ig.erMensual.map(m => m.margenBruto), borderColor: '#b3711a', tension: .25 },
+        { label: 'Margen neto', data: ig.erMensual.map(m => m.margenNeto), borderColor: '#1a7a4c', borderDash: [5,3], tension: .25 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } },
+      scales: { y: { ticks: { callback: v => (v/1e6).toFixed(0)+'M' } } }
+    }
+  });
+}
+
+/* ---------------- Inversiones del holding (UTE) — vista aparte de las empresas ---------------- */
+
+function fmtUsdObra(n) {
+  if (n === undefined || n === null || isNaN(n)) return '—';
+  return 'U$S ' + Number(n).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+function fmtMesCorto(m) {
+  if (!m) return '—';
+  const [y, mo] = m.split('-');
+  const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  return meses[parseInt(mo,10)-1] + '-' + y.slice(2);
+}
+
+function renderInversionesMain() {
+  const main = document.getElementById('main');
+  const readonly = state.role === 'socio';
+  ensureInversiones(state.data);
+  const inversiones = state.data.inversiones;
+
+  main.innerHTML = `
+    <div class="topbar">
+      <div>
+        <h2>Inversiones del Holding <span class="badge">${inversiones.length} inversión${inversiones.length===1?'':'es'}</span></h2>
+        <div class="meta">Aplicaciones del excedente financiero de una o más empresas en unidades de negocio aparte (p. ej. UTE de construcción). No forman parte del negocio core de ninguna empresa.</div>
+      </div>
+    </div>
+    ${readonly ? `<div class="readonly-banner">Estás en modo Socio/Gerente: vista de solo lectura.</div>` : ''}
+    <div id="invContent"></div>
+  `;
+
+  const content = document.getElementById('invContent');
+  if (!inversiones.length && !state.invUI.addingInversion) {
+    content.innerHTML = `<div class="empty-state"><h3>Sin inversiones cargadas</h3><p>Agregá la primera inversión (p. ej. una UTE) para registrar presupuesto y aportes por empresa.</p>${!readonly ? `<button class="secondary" id="addInvBtn">+ Agregar inversión</button>` : ''}</div>`;
+  } else {
+    content.innerHTML = `
+      ${inversiones.map(inv => tplInversionCard(inv, readonly)).join('')}
+      ${state.invUI.addingInversion ? tplFormInversion() : ''}
+      ${!readonly ? `<div class="remap-row"><button class="secondary" id="addInvBtn">+ Agregar inversión</button></div>` : ''}
+    `;
+  }
+
+  drawInversionCharts(inversiones);
+  if (!readonly) bindInversionesTab(inversiones);
+}
+
+function tplInversionCard(inv, readonly) {
+  const c = computeInversion(inv);
+  const avanceClamped = Math.max(0, Math.min(100, c.avanceTotalPct));
+  const filasPart = c.parts.map(p => `
+    <tr>
+      <td>${esc(p.empresaNombre)}</td>
+      <td>${p.pct}%</td>
+      <td>${fmtUsdObra(p.presupuestoUSD)}</td>
+      <td>${fmtUsdObra(p.r.aportadoUSD)}</td>
+      <td>${fmtUsdObra(p.r.restanteUSD)}</td>
+      <td>${p.r.avancePct.toFixed(1)}%</td>
+    </tr>`).join('');
+  const tablaPart = `
+    <div class="panel" style="box-shadow:none; border:1px solid #eaeef2;">
+      <h3>Presupuesto y aportes por empresa (en U$S)</h3>
+      <table class="hist">
+        <thead><tr><th>Empresa</th><th>Participación</th><th>Presupuesto</th><th>Aportado</th><th>Restante</th><th>% Avance</th></tr></thead>
+        <tbody>${filasPart}</tbody>
+      </table>
+    </div>`;
+
+  const partesDetalle = c.parts.map(p => tplParticipanteDetalle(inv, p, readonly)).join('');
+
+  const chartId = 'invChart_' + inv.id;
+  const addPartBtn = !readonly ? `<button class="secondary" id="addPartBtn_${inv.id}">+ Agregar empresa participante</button>` : '';
+  const delInvBtn = !readonly ? `<button class="secondary" id="delInvBtn_${inv.id}" style="color:#c0392b;border-color:#f0b8ab;">Eliminar inversión</button>` : '';
+
+  return `
+    <div class="panel obra-panel">
+      <div class="obra-header">
+        <div>
+          <h3 style="margin-bottom:2px;">${esc(inv.nombre)}</h3>
+          <div class="meta" style="margin:0;">${inv.tipo ? esc(inv.tipo) + ' · ' : ''}${inv.descripcion ? esc(inv.descripcion) : ''}</div>
+        </div>
+      </div>
+      <div class="cards">
+        <div class="card"><div class="label">Presupuesto total</div><div class="value">${fmtUsdObra(c.presupuestoTotalUSD)}</div></div>
+        <div class="card"><div class="label">Aportado a la fecha</div><div class="value">${fmtUsdObra(c.aportadoTotalUSD)}</div></div>
+        <div class="card"><div class="label">Restante</div><div class="value">${fmtUsdObra(c.restanteTotalUSD)}</div></div>
+        <div class="card"><div class="label">% Avance</div><div class="value">${c.avanceTotalPct.toFixed(1)}%</div></div>
+      </div>
+      <div class="obra-progress-track"><div class="obra-progress-fill" style="width:${avanceClamped.toFixed(1)}%"></div></div>
+      <div class="chart-wrap" style="height:240px; margin-top:18px;"><canvas id="${chartId}"></canvas></div>
+      ${tablaPart}
+      ${partesDetalle}
+      ${state.invUI.addingParticipanteFor === inv.id ? tplFormParticipante(inv) : ''}
+      <div class="remap-row" style="display:flex; gap:10px;">${addPartBtn}${delInvBtn}</div>
+    </div>
+  `;
+}
+
+function tplParticipanteDetalle(inv, p, readonly) {
+  const key = inv.id + '::' + p.empresaId;
+  const rubroHtml = p.r.porRubro.length ? tplRanking(p.r.porRubro.map(x=>({...x, monto:x.ars, nombre:x.rubro})), p.r.aportadoARS, 'monto') : '<p>Sin aportes cargados.</p>';
+  const filas = p.r.aportes.map((a,i) => `
+    <tr>
+      <td>${fmtMesCorto(a.mes)}</td>
+      <td>${esc(a.rubro)}</td>
+      <td>${fmtMoney(a.ars)}</td>
+      <td>${fmtUsdObra(a.usd)}</td>
+      ${!readonly ? `<td class="row-actions"><button class="del" data-key="${key}" data-idx="${i}">Eliminar</button></td>` : ''}
+    </tr>`).join('');
+  const addAporteBtn = !readonly ? `<button class="secondary" id="addAporteBtn_${key}">+ Cargar aporte de ${esc(p.empresaNombre)}</button>` : '';
+  return `
+    <div class="panel" style="box-shadow:none; border:1px solid #eaeef2;">
+      <h3>${esc(p.empresaNombre)} — composición y aportes</h3>
+      ${rubroHtml}
+      ${p.r.aportes.length ? `
+        <div style="max-height:260px; overflow:auto; margin-top:10px;">
+          <table class="hist">
+            <thead><tr><th>Mes</th><th>Rubro</th><th>Monto ($)</th><th>Monto (U$S)</th>${!readonly?'<th></th>':''}</tr></thead>
+            <tbody>${filas}</tbody>
+          </table>
+        </div>` : ''}
+      ${state.invUI.addingAporteFor === key ? tplFormAporteInv(inv, p) : ''}
+      ${!readonly ? `<div class="remap-row">${addAporteBtn}</div>` : ''}
+    </div>
+  `;
+}
+
+function tplFormInversion() {
+  const opts = state.data.empresas.map(e => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('');
+  return `
+    <div class="panel">
+      <h3>Nueva inversión</h3>
+      <form class="cierre" id="invForm">
+        <div class="field full"><label>Nombre</label><input type="text" id="inv_nombre" placeholder="ej: Los Boulevares" required></div>
+        <div class="field"><label>Tipo</label><input type="text" id="inv_tipo" placeholder="ej: UTE de construcción"></div>
+        <div class="field full"><label>Descripción (opcional)</label><input type="text" id="inv_desc" placeholder="ej: aplicación del excedente financiero de..."></div>
+        <div class="field full" style="border-top:1px solid #eaeef2; padding-top:10px; margin-top:4px;"><label>Primera empresa participante</label></div>
+        <div class="field"><label>Empresa</label><select id="inv_empresa">${opts}</select></div>
+        <div class="field"><label>Participación (%)</label><input type="number" step="0.01" id="inv_pct" placeholder="ej: 40" required></div>
+        <div class="field"><label>Presupuesto — participación (U$S)</label><input type="number" step="0.01" id="inv_presupuesto" placeholder="0" required></div>
+        <div class="form-actions">
+          <button type="button" class="secondary" id="invCancelBtn">Cancelar</button>
+          <button type="submit" class="primary">Guardar inversión</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+function tplFormParticipante(inv) {
+  const yaParticipan = new Set((inv.participantes||[]).map(p => p.empresaId));
+  const opts = state.data.empresas.filter(e => !yaParticipan.has(e.id)).map(e => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('');
+  return `
+    <div class="panel">
+      <h3>Agregar empresa participante — ${esc(inv.nombre)}</h3>
+      <form class="cierre" id="partForm">
+        <div class="field"><label>Empresa</label><select id="part_empresa">${opts}</select></div>
+        <div class="field"><label>Participación (%)</label><input type="number" step="0.01" id="part_pct" placeholder="ej: 30" required></div>
+        <div class="field"><label>Presupuesto — participación (U$S)</label><input type="number" step="0.01" id="part_presupuesto" placeholder="0" required></div>
+        <div class="form-actions">
+          <button type="button" class="secondary" id="partCancelBtn">Cancelar</button>
+          <button type="submit" class="primary">Agregar</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+function tplFormAporteInv(inv, p) {
+  const rubroOpts = RUBROS_OBRA.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('');
+  const defMonth = new Date().toISOString().slice(0,7);
+  return `
+    <div class="panel" style="margin-top:10px;">
+      <h3>Cargar aporte — ${esc(p.empresaNombre)}</h3>
+      <form class="cierre" id="aporteInvForm">
+        <div class="field"><label>Mes</label><input type="month" id="api_mes" value="${defMonth}" required></div>
+        <div class="field"><label>Rubro</label><select id="api_rubro">${rubroOpts}</select></div>
+        <div class="field"></div>
+        <div class="field"><label>Monto ($)</label><input type="number" step="0.01" id="api_ars" placeholder="0" required></div>
+        <div class="field"><label>Monto (U$S)</label><input type="number" step="0.01" id="api_usd" placeholder="0" required></div>
+        <div class="form-actions">
+          <button type="button" class="secondary" id="aporteInvCancelBtn">Cancelar</button>
+          <button type="submit" class="primary">Guardar aporte</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+function drawInversionCharts(inversiones) {
+  inversiones.forEach(inv => {
+    const canvas = document.getElementById('invChart_' + inv.id);
+    if (!canvas) return;
+    if (inversionChartInstances[inv.id]) inversionChartInstances[inv.id].destroy();
+    const c = computeInversion(inv);
+    const porMes = {};
+    c.parts.forEach(p => p.r.aportes.forEach(a => { porMes[a.mes] = (porMes[a.mes]||0) + a.ars; }));
+    const meses = Object.keys(porMes).sort();
+    inversionChartInstances[inv.id] = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: meses.map(fmtMesCorto),
+        datasets: [{ label: 'Aporte mensual total ($)', data: meses.map(m => porMes[m]), backgroundColor: '#1e63b8' }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { ticks: { callback: v => (v/1e6).toFixed(1)+'M' } } }
+      }
+    });
+  });
+}
+
+function bindInversionesTab(inversiones) {
+  document.getElementById('addInvBtn')?.addEventListener('click', () => {
+    state.invUI = { addingInversion: true, addingParticipanteFor: null, addingAporteFor: null }; renderAll();
+  });
+  document.getElementById('invCancelBtn')?.addEventListener('click', () => {
+    state.invUI.addingInversion = false; renderAll();
+  });
+  document.getElementById('invForm')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const nombre = document.getElementById('inv_nombre').value.trim();
+    if (!nombre) return;
+    const empresaId = document.getElementById('inv_empresa').value;
+    const empresa = getEmpresa(empresaId);
+    ensureInversiones(state.data);
+    state.data.inversiones.push({
+      id: uid(),
+      nombre,
+      tipo: document.getElementById('inv_tipo').value.trim(),
+      descripcion: document.getElementById('inv_desc').value.trim(),
+      participantes: [{
+        empresaId,
+        empresaNombre: empresa ? empresa.nombre : empresaId,
+        pct: parseFloat(document.getElementById('inv_pct').value) || 0,
+        presupuestoUSD: parseFloat(document.getElementById('inv_presupuesto').value) || 0,
+        aportes: []
+      }]
+    });
+    state.invUI.addingInversion = false;
+    save(); renderAll();
+  });
+
+  inversiones.forEach(inv => {
+    document.getElementById('addPartBtn_' + inv.id)?.addEventListener('click', () => {
+      state.invUI = { addingInversion: false, addingParticipanteFor: inv.id, addingAporteFor: null }; renderAll();
+    });
+    document.getElementById('delInvBtn_' + inv.id)?.addEventListener('click', () => {
+      if (confirm(`¿Eliminar la inversión "${inv.nombre}" y todos sus datos?`)) {
+        state.data.inversiones = state.data.inversiones.filter(i => i.id !== inv.id);
+        save(); renderAll();
+      }
+    });
+    (inv.participantes||[]).forEach(p => {
+      const key = inv.id + '::' + p.empresaId;
+      document.getElementById('addAporteBtn_' + key)?.addEventListener('click', () => {
+        state.invUI = { addingInversion: false, addingParticipanteFor: null, addingAporteFor: key }; renderAll();
+      });
+    });
+  });
+
+  document.getElementById('partCancelBtn')?.addEventListener('click', () => {
+    state.invUI.addingParticipanteFor = null; renderAll();
+  });
+  document.getElementById('partForm')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const inv = state.data.inversiones.find(i => i.id === state.invUI.addingParticipanteFor);
+    if (!inv) return;
+    const empresaId = document.getElementById('part_empresa').value;
+    const empresa = getEmpresa(empresaId);
+    if (!empresaId) return;
+    inv.participantes.push({
+      empresaId,
+      empresaNombre: empresa ? empresa.nombre : empresaId,
+      pct: parseFloat(document.getElementById('part_pct').value) || 0,
+      presupuestoUSD: parseFloat(document.getElementById('part_presupuesto').value) || 0,
+      aportes: []
+    });
+    state.invUI.addingParticipanteFor = null;
+    save(); renderAll();
+  });
+
+  document.getElementById('aporteInvCancelBtn')?.addEventListener('click', () => {
+    state.invUI.addingAporteFor = null; renderAll();
+  });
+  document.getElementById('aporteInvForm')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const key = state.invUI.addingAporteFor;
+    if (!key) return;
+    const [invId, empresaId] = key.split('::');
+    const inv = state.data.inversiones.find(i => i.id === invId);
+    const part = inv && inv.participantes.find(p => p.empresaId === empresaId);
+    if (!part) return;
+    const mes = document.getElementById('api_mes').value;
+    if (!mes) return;
+    part.aportes.push({
+      mes,
+      rubro: document.getElementById('api_rubro').value,
+      ars: parseFloat(document.getElementById('api_ars').value) || 0,
+      usd: parseFloat(document.getElementById('api_usd').value) || 0
+    });
+    state.invUI.addingAporteFor = null;
+    save(); renderAll();
+  });
+
+  document.querySelectorAll('.row-actions .del[data-key]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const [invId, empresaId] = btn.dataset.key.split('::');
+      const inv = state.data.inversiones.find(i => i.id === invId);
+      const part = inv && inv.participantes.find(p => p.empresaId === empresaId);
+      if (!part) return;
+      const idx = parseInt(btn.dataset.idx, 10);
+      if (confirm('¿Eliminar este aporte?')) {
+        part.aportes.splice(idx, 1);
+        save(); renderAll();
+      }
+    });
+  });
+}
+
+function prepareMappingStep(emp) {
+  const up = state.upload;
+  const rows = up.sheets[up.sheetName];
+  const { headers, data } = XlsxLite.sheetToObjects(rows);
+  up.headers = headers;
+  up.rows = data;
+  const cfg = MODULE_CONFIG[up.kind];
+  ensureModulos(emp);
+  const savedMap = emp.modulos[up.kind].colMap;
+  const mapping = {};
+  cfg.fields.forEach(f => {
+    if (savedMap && savedMap[f.key] && headers.includes(savedMap[f.key])) mapping[f.key] = savedMap[f.key];
+    else mapping[f.key] = guessColumn(headers, f.keywords);
+  });
+  up.mapping = mapping;
+}
+
+function handleFileInput(kind, emp) {
+  const input = document.getElementById('fileInput');
+  if (!input) return;
+  input.addEventListener('change', () => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const bytes = new Uint8Array(reader.result);
+        const wb = XlsxLite.parseXlsx(bytes);
+        if (!wb.sheetNames.length) { alert('No se encontraron hojas en el archivo.'); return; }
+        state.upload = { kind, sheetNames: wb.sheetNames, sheets: wb.sheets, sheetChosen: wb.sheetNames.length===1, sheetName: wb.sheetNames[0] };
+        if (state.upload.sheetChosen) prepareMappingStep(emp);
+        renderAll();
+      } catch (e) {
+        alert('No se pudo leer el archivo. Verificá que sea un .xlsx válido.\n' + e.message);
+      }
+    };
+    reader.onerror = () => alert('Error al leer el archivo.');
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function onMappingConfirm(emp) {
+  const cfg = MODULE_CONFIG[state.upload.kind];
+  const mapping = {};
+  document.querySelectorAll('.mapSelect').forEach(sel => { mapping[sel.dataset.field] = sel.value; });
+  const missing = cfg.fields.filter(f => f.required && !mapping[f.key]);
+  if (missing.length) { alert('Falta asignar: ' + missing.map(f=>f.label).join(', ')); return; }
+  ensureModulos(emp);
+  const kind = state.upload.kind;
+  const monthKey = emp.id + '_' + kind;
+  const mes = state.modMonth[monthKey];
+  const fechaCorte = lastDayOfMonth(mes);
+  let resultado;
+  if (kind === 'ventas') resultado = computeVentas(state.upload.rows, mapping);
+  else if (kind === 'deudores') resultado = computeCartera(state.upload.rows, mapping, fechaCorte, 'cliente');
+  else if (kind === 'proveedores') resultado = computeCartera(state.upload.rows, mapping, fechaCorte, 'proveedor');
+  else resultado = computeGastosCC(state.upload.rows, mapping);
+  emp.modulos[kind].datos[mes] = { resultado, colMapUsed: mapping, filas: state.upload.rows.length, cargadoEl: new Date().toISOString(), sheetUsada: state.upload.sheetName };
+  emp.modulos[kind].colMap = mapping;
+  save();
+  state.upload = null;
+  renderAll();
+}
+
+function bindModuloTab(kind, emp, readonly) {
+  const monthKey = emp.id + '_' + kind;
+  const monthInput = document.getElementById('modMonthInput');
+  if (monthInput) {
+    monthInput.addEventListener('change', () => {
+      state.modMonth[monthKey] = monthInput.value;
+      state.upload = null;
+      renderAll();
+    });
+  }
+
+  if (state.upload && state.upload.kind === kind) {
+    if (!state.upload.sheetChosen) {
+      document.getElementById('sheetConfirm')?.addEventListener('click', () => {
+        const sel = document.getElementById('sheetSelect');
+        state.upload.sheetName = sel.value;
+        state.upload.sheetChosen = true;
+        prepareMappingStep(emp);
+        renderAll();
+      });
+    } else {
+      document.getElementById('mappingConfirm')?.addEventListener('click', () => onMappingConfirm(emp));
+    }
+    document.getElementById('uploadCancel')?.addEventListener('click', () => { state.upload = null; renderAll(); });
+    return;
+  }
+
+  if (!readonly) {
+    handleFileInput(kind, emp);
+    document.getElementById('remapBtn')?.addEventListener('click', () => {
+      const mes = state.modMonth[monthKey];
+      if (confirm(`¿Reemplazar el archivo cargado para ${fmtMes(mes)}?`)) {
+        delete emp.modulos[kind].datos[mes];
+        save(); renderAll();
+      }
+    });
+  }
+
+  document.querySelectorAll('th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const tid = th.dataset.tableid, key = th.dataset.key;
+      const cur = state.moduleSort[tid] || {};
+      const dir = (cur.key===key && cur.dir==='desc') ? 'asc' : 'desc';
+      state.moduleSort[tid] = { key, dir };
+      renderAll();
+    });
+  });
+
+  const mesActual = state.modMonth[monthKey];
+  const datosMes = emp.modulos[kind].datos[mesActual];
+  if (datosMes && (kind === 'deudores' || kind === 'proveedores')) {
+    drawAgingChart(datosMes.resultado.aging);
+  }
+}
+
+/* ---------------- Eventos globales ---------------- */
+
+document.getElementById('addEmpresaBtn').addEventListener('click', async () => {
+  const nombre = prompt('Nombre de la nueva empresa:');
+  if (!nombre) return;
+  const cuit = prompt('CUIT de la empresa (opcional):') || '';
+  const id = uid();
+  const { error } = await sb.from('empresas').insert({ id, nombre: nombre.trim(), cuit: cuit.trim(), tipo_negocio: 'generico' });
+  if (error) { alert('No se pudo crear la empresa: ' + error.message); return; }
+  const nueva = { id, nombre: nombre.trim(), cuit: cuit.trim(), tipoNegocio: 'generico', cierres: [], modulos: blankModulos() };
+  state.data.empresas.push(nueva);
+  state.view = 'empresas';
+  state.selectedId = nueva.id;
+  state.tab = 'cargar';
+  renderAll();
+});
+
+function renderAll() {
+  renderSidebar();
+  if (state.view === 'inversiones') renderInversionesMain();
+  else if (state.view === 'admin') renderAdminMain();
+  else renderMain();
+}
+
+/* ---------------- Autenticación (Supabase) ---------------- */
+
+const SUPABASE_URL = 'https://cicuwofrkkfbrcdcaubz.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_SjQnaF6sdyfipTqIaiMmGw_mFjhSBa5';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function computeResultadoModulo(mod, mes, datos) {
+  try {
+    if (mod === 'ventas' && datos && datos.filas) return computeVentas(datos.filas, { cliente: 'Cliente', monto: 'Monto' });
+    if (mod === 'deudores' && datos && datos.filas) return computeCartera(datos.filas, { cliente: 'Deudor', saldo: 'Saldo' }, lastDayOfMonth(mes), 'cliente');
+  } catch (e) { console.warn('No se pudo calcular resultado de', mod, mes, e); }
+  return null;
+}
+
+async function fetchAppData() {
+  const [{ data: empresasRows }, { data: cierresRows }, { data: informesRows }, { data: modulosRows },
+         { data: inversionesRows }, { data: participantesRows }, { data: aportesRows }] = await Promise.all([
+    sb.from('empresas').select('*').order('orden'),
+    sb.from('cierres').select('*'),
+    sb.from('informes_gestion').select('*'),
+    sb.from('modulos_datos').select('*'),
+    sb.from('inversiones').select('*'),
+    sb.from('inversion_participantes').select('*'),
+    sb.from('inversion_aportes').select('*')
+  ]);
+  const empresas = (empresasRows || []).map(e => {
+    const emp = {
+      id: e.id, nombre: e.nombre, cuit: e.cuit, tipoNegocio: e.tipo_negocio,
+      nota: e.nota || undefined,
+      logo: e.id === 'mec' ? LOGO_MEC : (e.logo_base64 || undefined),
+      cierres: (cierresRows || []).filter(c => c.empresa_id === e.id).map(c => ({
+        mes: c.mes, ingresos: c.ingresos, egresos: c.egresos, activo: c.activo, pasivo: c.pasivo,
+        patrimonio: c.patrimonio, liquidez: c.liquidez, endeudamiento: c.endeudamiento,
+        estado: c.estado, resumen: c.resumen
+      })),
+      modulos: blankModulos()
+    };
+    const ig = (informesRows || []).find(i => i.empresa_id === e.id);
+    if (ig) emp.informeGestion = ig.data;
+    (modulosRows || []).filter(m => m.empresa_id === e.id).forEach(m => {
+      if (!emp.modulos[m.modulo]) return;
+      const resultado = computeResultadoModulo(m.modulo, m.mes, m.datos);
+      emp.modulos[m.modulo].datos[m.mes] = Object.assign({}, m.datos, resultado ? { resultado } : {});
+    });
+    ensureNegocio(emp);
+    return emp;
+  });
+  const inversiones = (inversionesRows || []).map(inv => ({
+    id: inv.id, nombre: inv.nombre, tipo: inv.tipo, descripcion: inv.descripcion,
+    participantes: (participantesRows || []).filter(p => p.inversion_id === inv.id).map(p => ({
+      id: p.id, empresaId: p.empresa_id, empresaNombre: p.empresa_nombre, pct: Number(p.pct), presupuestoUSD: Number(p.presupuesto_usd),
+      aportes: (aportesRows || []).filter(a => a.participante_id === p.id).map(a => ({
+        mes: a.mes, rubro: a.rubro, ars: a.ars != null ? Number(a.ars) : undefined, usd: a.usd != null ? Number(a.usd) : undefined
+      }))
+    }))
+  }));
+  return { empresas, inversiones };
+}
+
+async function afterLogin() {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) { showLogin(); return; }
+  const { data: profile, error: profileErr } = await sb.from('profiles').select('*').eq('id', user.id).maybeSingle();
+  if (profileErr || !profile) {
+    showLoginError('No se encontró un perfil asociado a este usuario. Contactá al administrador.');
+    await sb.auth.signOut();
+    return;
+  }
+  state.profile = profile;
+  state.role = profile.rol === 'auditor' ? 'auditor' : 'socio';
+  state.esAdmin = !!profile.es_admin;
+  try {
+    state.data = await fetchAppData();
+  } catch (e) {
+    console.error('Error cargando datos de Supabase', e);
+    showLoginError('No se pudieron cargar los datos. Intentá de nuevo más tarde.');
+    return;
+  }
+  if (!state.selectedId && state.data.empresas.length) state.selectedId = state.data.empresas[0].id;
+  state.view = 'empresas';
+  state.tab = 'resumen';
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appRoot').style.display = '';
+  renderAll();
+}
+
+function showLogin() {
+  document.getElementById('appRoot').style.display = 'none';
+  document.getElementById('loginScreen').style.display = '';
+  const submitBtn = document.getElementById('loginSubmitBtn');
+  if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Ingresar'; }
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('loginError');
+  if (el) { el.textContent = msg; el.style.display = msg ? '' : 'none'; }
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  state.data = { empresas: [], inversiones: [] };
+  state.profile = null;
+  state.esAdmin = false;
+  state.role = 'socio';
+  state.selectedId = null;
+  showLogin();
+}
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  showLoginError('');
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const submitBtn = document.getElementById('loginSubmitBtn');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Ingresando...'; }
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) {
+    showLoginError('Usuario o contraseña incorrectos.');
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Ingresar'; }
+    return;
+  }
+  await afterLogin();
+});
+
+sb.auth.onAuthStateChange((event) => {
+  if (event === 'SIGNED_OUT') showLogin();
+});
+
+(async function initAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) { await afterLogin(); }
+  else { showLogin(); }
+})();
+
+/* ---------------- Panel de administración ---------------- */
+
+async function loadAdminUsers() {
+  const { data, error } = await sb.from('profiles').select('*').order('email');
+  return error ? [] : (data || []);
+}
+
+async function renderAdminMain() {
+  const main = document.getElementById('main');
+  if (!main) return;
+  main.innerHTML = '<div class="panel"><h2>Administración de usuarios</h2><p class="sub">Cargando...</p></div>';
+  const users = await loadAdminUsers();
+  const rows = users.map(u => `
+    <tr>
+      <td>${esc(u.email || '')}</td>
+      <td>${esc(u.nombre || '')}</td>
+      <td>
+        <select data-uid="${esc(u.id)}" class="admin-role-select">
+          <option value="socio" ${u.rol === 'socio' ? 'selected' : ''}>Socio/Gerente</option>
+          <option value="auditor" ${u.rol === 'auditor' ? 'selected' : ''}>Auditor</option>
+        </select>
+      </td>
+      <td>
+        <label><input type="checkbox" class="admin-esadmin-check" data-uid="${esc(u.id)}" ${u.es_admin ? 'checked' : ''}> Admin</label>
+      </td>
+    </tr>`).join('');
+  main.innerHTML = `
+    <div class="panel">
+      <h2>Administración de usuarios</h2>
+      <p class="sub">Gestioná quién puede ver cada empresa y quién tiene permisos de edición.</p>
+      <table class="hist">
+        <thead><tr><th>Email</th><th>Nombre</th><th>Rol</th><th>Admin</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="4">Sin usuarios.</td></tr>'}</tbody>
+      </table>
+      <h3 style="margin-top:24px;">Crear nuevo usuario</h3>
+      <form id="adminCreateUserForm" class="login-box" style="max-width:360px;">
+        <div class="field"><label>Nombre</label><input type="text" id="newUserNombre" required></div>
+        <div class="field"><label>Email</label><input type="email" id="newUserEmail" required></div>
+        <div class="field"><label>Contraseña provisoria</label><input type="password" id="newUserPassword" required minlength="6"></div>
+        <div class="field"><label>Rol</label>
+          <select id="newUserRol">
+            <option value="socio">Socio/Gerente</option>
+            <option value="auditor">Auditor</option>
+          </select>
+        </div>
+        <button type="submit" class="primary">Crear usuario</button>
+        <div id="newUserError" class="login-error" style="display:none;"></div>
+      </form>
+    </div>`;
+
+  main.querySelectorAll('.admin-role-select').forEach(sel => {
+    sel.addEventListener('change', async () => {
+      const uid_ = sel.dataset.uid;
+      const { error } = await sb.from('profiles').update({ rol: sel.value }).eq('id', uid_);
+      if (error) alert('No se pudo actualizar el rol: ' + error.message);
+    });
+  });
+  main.querySelectorAll('.admin-esadmin-check').forEach(chk => {
+    chk.addEventListener('change', async () => {
+      const uid_ = chk.dataset.uid;
+      const { error } = await sb.from('profiles').update({ es_admin: chk.checked }).eq('id', uid_);
+      if (error) { alert('No se pudo actualizar: ' + error.message); chk.checked = !chk.checked; }
+    });
+  });
+
+  const createForm = document.getElementById('adminCreateUserForm');
+  if (createForm) {
+    createForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('newUserError');
+      errEl.style.display = 'none';
+      const nombre = document.getElementById('newUserNombre').value.trim();
+      const email = document.getElementById('newUserEmail').value.trim();
+      const password = document.getElementById('newUserPassword').value;
+      const rol = document.getElementById('newUserRol').value;
+      const submitBtn = createForm.querySelector('button[type="submit"]');
+      submitBtn.disabled = true; submitBtn.textContent = 'Creando...';
+      try {
+        const { data: { session } } = await sb.auth.getSession();
+        const resp = await fetch(SUPABASE_URL + '/functions/v1/admin-create-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+          body: JSON.stringify({ nombre, email, password, rol })
+        });
+        const json = await resp.json();
+        if (!resp.ok) throw new Error(json.error || 'Error desconocido');
+        renderAdminMain();
+      } catch (err) {
+        errEl.textContent = 'No se pudo crear el usuario: ' + err.message;
+        errEl.style.display = '';
+      } finally {
+        submitBtn.disabled = false; submitBtn.textContent = 'Crear usuario';
+      }
+    });
+  }
+}
+</script>
+</body>
+</html>
